@@ -194,8 +194,8 @@ function drawPlatform(pl){
  // Sprite upper snow surface is aligned with the physics collision surface (pl.y).
  const h=sprite.naturalWidth?w*sprite.naturalHeight/sprite.naturalWidth:w*.42;
  const top=y-h*.10;
- ctx.shadowColor='#00112c';ctx.shadowBlur=5;ctx.shadowOffsetY=3;
  if(pl.move)drawIceEngine(pl,y,h,performance.now(),'rear');
+ ctx.shadowColor='#00112c';ctx.shadowBlur=5;ctx.shadowOffsetY=3;
  if(sprite.complete&&sprite.naturalWidth){ctx.drawImage(sprite,x,top,w,h)}else{
  ctx.fillStyle='#254877';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+w,y);ctx.lineTo(x+w*.52,y+h-24);ctx.closePath();ctx.fill();
  ctx.fillStyle='#f0fcff';ctx.fillRect(x,y-8,w,13);
