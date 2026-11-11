@@ -1,0 +1,70 @@
+name: Build improved Frost Magnet animation
+on:
+  push:
+    paths:
+      - '.github/workflows/build-frost-magnet-hd.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow
+      - name: Rebuild smooth transparent 12-frame magnet from source
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageEnhance, ImageFilter
+          import io, base64, math
+          source=Image.open(io.BytesIO(base64.b64decode(open('assets/frost_magnet_first.gif.base64').read())))
+          raw=[]
+          for i in range(source.n_frames):
+              source.seek(i)
+              raw.append(source.convert('RGBA').copy())
+          frames=[]
+          for i in range(12):
+              pos=i*len(raw)/12
+              a=int(pos)%len(raw)
+              b=(a+1)%len(raw)
+              blend=pos-int(pos)
+              fr=Image.blend(raw[a],raw[b],blend)
+              fr.thumbnail((112,112),Image.Resampling.LANCZOS)
+              frame=Image.new('RGBA',(128,128),(0,0,0,0))
+              frame.alpha_composite(fr,((128-fr.width)//2,(128-fr.height)//2))
+              pixels=frame.load()
+              for y in range(128):
+                  for x in range(128):
+                      r,g,b,alpha=pixels[x,y]
+                      # Separate bright magnet from original dark backdrop.
+                      brightness=max(r,g,b)
+                      transparency=max(0,min(255,round((brightness-25)*255/60)))
+                      border=min(x,y,127-x,127-y)
+                      fade=min(1,border/7)
+                      pixels[x,y]=(r,g,b,int(alpha*transparency/255*fade))
+              frame=frame.filter(ImageFilter.UnsharpMask(radius=1.2,percent=125,threshold=2))
+              frames.append(frame)
+          sheet=Image.new('RGBA',(128*len(frames),128),(0,0,0,0))
+          for i,fr in enumerate(frames):
+              sheet.alpha_composite(fr,(i*128,0))
+          sheet.save('assets/frost_magnet_hd_frames.png',optimize=True)
+          print('Generated',len(frames),'frames,',sheet.size)
+          PY
+      - name: Commit HD sprite
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/frost_magnet_hd_frames.png
+          if ! git diff --cached --quiet; then
+            git commit -m "Build 12-frame HD Frost Magnet animation"
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then exit 0; fi
+              sleep 3
+            done
+            exit 1
+          fi
