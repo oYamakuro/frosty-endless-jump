@@ -1,0 +1,66 @@
+name: Build transparent animated Frost Magnet frames
+on:
+  push:
+    paths:
+      - 'assets/frost_magnet_first.gif.base64'
+      - '.github/workflows/build-frost-magnet.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow
+      - name: Decode GIF and extract animated 3D frames
+        run: |
+          python - <<'PY'
+          from PIL import Image, ImageFilter
+          import base64, io, math
+          data=base64.b64decode(open('assets/frost_magnet_first.gif.base64').read().strip())
+          im=Image.open(io.BytesIO(data))
+          frames=[]
+          for i in range(im.n_frames):
+              im.seek(i)
+              source=im.convert('RGBA')
+              # Fit the portrait-shaped 3D magnet in a square sprite without stretching.
+              source.thumbnail((82,82),Image.Resampling.LANCZOS)
+              fr=Image.new('RGBA',(96,96),(0,0,0,0))
+              fr.alpha_composite(source,((96-source.width)//2,(96-source.height)//2))
+              pix=fr.load()
+              for y in range(96):
+                  for x in range(96):
+                      r,g,b,a=pix[x,y]
+                      # The original generated animation has a dark navy backdrop.
+                      # Suppress dark pixels and keep the illuminated magnet.
+                      lum=max(r,g,b)
+                      alpha=max(0,min(255,int((lum-32)*255/55)))
+                      edge=min(x,y,95-x,95-y)
+                      feather=max(0,min(1,edge/7))
+                      pix[x,y]=(r,g,b,int(a*alpha/255*feather))
+              frames.append(fr)
+          assert len(frames)>1,'Animation must contain multiple frames'
+          sheet=Image.new('RGBA',(96*len(frames),96),(0,0,0,0))
+          for i,fr in enumerate(frames):sheet.alpha_composite(fr,(i*96,0))
+          sheet.save('assets/frost_magnet_frames.png',optimize=True)
+          print('Magnet animation frames:',len(frames))
+          PY
+      - name: Commit and push sprite sheet
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/frost_magnet_frames.png
+          if ! git diff --cached --quiet; then
+            git commit -m "Generate transparent animated Frost Magnet sprite sheet"
+            for attempt in 1 2 3 4 5; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then exit 0; fi
+              sleep 3
+            done
+            exit 1
+          fi
