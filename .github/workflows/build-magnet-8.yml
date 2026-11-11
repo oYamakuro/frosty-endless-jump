@@ -1,0 +1,26 @@
+name: Build transparent 8-frame magnet animation
+on:
+  push:
+    paths:
+      - 'assets/frost_magnet_vector.svg'
+      - 'scripts/build_magnet_8.py'
+      - '.github/workflows/build-magnet-8.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow cairosvg
+      - run: python scripts/build_magnet_8.py
+      - name: Commit generated sprite
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/frost_magnet_8frames.png
+          git diff --cached --quiet || (git commit -m "Generate transparent 8-frame magnet sprite" && git push)
