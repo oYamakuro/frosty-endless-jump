@@ -77,21 +77,21 @@ function drawPower(q,t){
     ctx.save();
     ctx.translate(q.x,y+Math.sin(t*.003+q.phase)*2.5);
     const pulse=1+.08*Math.sin(t*.006+q.phase);
-    const aura=ctx.createRadialGradient(0,0,7,0,0,34*pulse);
+    const aura=ctx.createRadialGradient(0,0,7,0,0,29*pulse);
     aura.addColorStop(0,'rgba(35,201,255,.19)');
     aura.addColorStop(.52,'rgba(26,153,255,.08)');
     aura.addColorStop(1,'rgba(30,169,255,0)');
     ctx.fillStyle=aura;
-    ctx.beginPath();ctx.arc(0,0,34*pulse,0,Math.PI*2);ctx.fill();
+    ctx.beginPath();ctx.arc(0,0,29*pulse,0,Math.PI*2);ctx.fill();
     const frame=Math.floor((t+q.phase*60)/125)%8;
     ctx.shadowColor='#32dfff';ctx.shadowBlur=5;
-    ctx.drawImage(frostMagnetReal3D,frame*48,0,48,48,-30,-30,60,60);
+    ctx.drawImage(frostMagnetReal3D,frame*48,0,48,48,-26,-26,52,52);
     ctx.shadowBlur=0;
     for(let j=0;j<4;j++){
       const angle=t*.0015+j*Math.PI/2+q.phase;
       ctx.fillStyle=j%2?'#f5ffff':'#58dfff';
       ctx.globalAlpha=.38+.35*Math.sin(t*.004+j)**2;
-      ctx.beginPath();ctx.arc(Math.cos(angle)*27,Math.sin(angle)*26,1.1,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.arc(Math.cos(angle)*24,Math.sin(angle)*23,1.1,0,Math.PI*2);ctx.fill();
     }
     ctx.restore();
     return;
