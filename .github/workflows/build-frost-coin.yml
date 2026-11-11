@@ -1,0 +1,48 @@
+name: Build transparent Frost Coin sprite sheet
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'assets/Frost_Coin_Animation.gif'
+      - '.github/workflows/build-frost-coin.yml'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pillow
+      - name: Extract original 3D animation frames
+        run: |
+          python - <<'PY'
+          from PIL import Image
+          im=Image.open('assets/Frost_Coin_Animation.gif')
+          frames=[]
+          for i in range(im.n_frames):
+              im.seek(i)
+              fr=im.convert('RGBA').resize((96,96),Image.Resampling.LANCZOS)
+              px=fr.load()
+              for y in range(96):
+                  for x in range(96):
+                      r,g,b,a=px[x,y]
+                      light=max(r,g,b)
+                      # Remove the GIF's dark navy background, preserve bright icy glow.
+                      alpha=max(0,min(255,round((light-17)*255/45)))
+                      edge=max(0,min(1,(48-((x-47.5)**2+(y-47.5)**2)**.5)/6))
+                      px[x,y]=(r,g,b,round(a*alpha/255*edge))
+              frames.append(fr)
+          sheet=Image.new('RGBA',(96*len(frames),96))
+          for i,fr in enumerate(frames):sheet.paste(fr,(i*96,0))
+          sheet.save('assets/frost_coin_frames.png',optimize=True)
+          print('Frames:',len(frames))
+          PY
+      - name: Commit generated transparent frames
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add assets/frost_coin_frames.png
+          if ! git diff --cached --quiet; then git commit -m "Build original animated Frost Coin sprite frames"; git push; fi
