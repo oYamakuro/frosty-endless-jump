@@ -25,27 +25,46 @@ jobs:
           for i in range(source.n_frames):
               source.seek(i)
               raw.append(source.convert('RGBA').copy())
+          # Find the bright/red magnet region across all animation frames.
+          boxes=[]
+          for fr in raw:
+              rgb=fr.convert('RGB')
+              w,h=rgb.size
+              coords=[]
+              for yy in range(h):
+                  for xx in range(w):
+                      r,g,b=rgb.getpixel((xx,yy))
+                      red=r>70 and r>g*1.28 and r>b*1.08
+                      ice=max(r,g,b)>125 and (g>75 or b>75)
+                      if red or ice:coords.append((xx,yy))
+              if coords:
+                  boxes.append((min(p[0] for p in coords),min(p[1] for p in coords),max(p[0] for p in coords)+1,max(p[1] for p in coords)+1))
+          if boxes:
+              left=min(b[0] for b in boxes);top=min(b[1] for b in boxes)
+              right=max(b[2] for b in boxes);bottom=max(b[3] for b in boxes)
+              pad=3
+              crop=(max(0,left-pad),max(0,top-pad),min(raw[0].width,right+pad),min(raw[0].height,bottom+pad))
+          else:crop=(0,0,raw[0].width,raw[0].height)
           frames=[]
           for i in range(12):
               pos=i*len(raw)/12
               a=int(pos)%len(raw)
               b=(a+1)%len(raw)
-              blend=pos-int(pos)
-              fr=Image.blend(raw[a],raw[b],blend)
-              fr.thumbnail((112,112),Image.Resampling.LANCZOS)
+              fr=Image.blend(raw[a],raw[b],pos-int(pos)).crop(crop)
+              fr.thumbnail((116,116),Image.Resampling.LANCZOS)
               frame=Image.new('RGBA',(128,128),(0,0,0,0))
               frame.alpha_composite(fr,((128-fr.width)//2,(128-fr.height)//2))
               pixels=frame.load()
-              for y in range(128):
-                  for x in range(128):
-                      r,g,b,alpha=pixels[x,y]
-                      # Separate bright magnet from original dark backdrop.
-                      brightness=max(r,g,b)
-                      transparency=max(0,min(255,round((brightness-25)*255/60)))
-                      border=min(x,y,127-x,127-y)
-                      fade=min(1,border/7)
-                      pixels[x,y]=(r,g,b,int(alpha*transparency/255*fade))
-              frame=frame.filter(ImageFilter.UnsharpMask(radius=1.2,percent=125,threshold=2))
+              for yy in range(128):
+                  for xx in range(128):
+                      r,g,b,alpha=pixels[xx,yy]
+                      # Suppress navy background using color, not only brightness.
+                      red=max(0,r-max(g,b)*0.86)
+                      cyan=max(0,min(g,b)-r*.72)
+                      bright=max(0,max(r,g,b)-90)
+                      strength=max(red*3.2,cyan*1.9,bright*1.65)
+                      mask=max(0,min(255,int(strength)))
+                      pixels[xx,yy]=(r,g,b,int(alpha*mask/255))
               frames.append(frame)
           sheet=Image.new('RGBA',(128*len(frames),128),(0,0,0,0))
           for i,fr in enumerate(frames):
