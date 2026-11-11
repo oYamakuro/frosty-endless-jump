@@ -84,7 +84,108 @@ mountain(H*.88,105,'#142e51',camera*.014);mountain(H*.99,90,'#1b4168',camera*.03
 ctx.save();ctx.globalAlpha=.5;for(let i=0;i<15;i++){let x=(i*93+27)%W,base=H*.95+(i%4)*18;ctx.strokeStyle='#0b2c45';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,base);ctx.lineTo(x,base-32-(i%5)*13);ctx.stroke();for(let k=0;k<3;k++){let y=base-12-k*13-(i%5)*3;ctx.fillStyle=k===0?'#d2ecff':'#143c55';ctx.beginPath();ctx.moveTo(x,y-23);ctx.lineTo(x-12-k*3,y+4);ctx.lineTo(x+12+k*3,y+4);ctx.fill()}}ctx.restore();
 for(const sn of snow){sn.y+=sn.s*.55;if(sn.y>H)sn.y=0;ctx.fillStyle='#d9f5ffb8';ctx.beginPath();ctx.arc(sn.x,sn.y,sn.r,0,7);ctx.fill()}}
 const rockSprites=['rock_a','rock_b','rock_c'].map(name=>{const img=new Image();img.src='assets/'+name+'.png?v=1.7';return img});
-function drawIceEngine(pl,y,h,t){const pulse=.75+.25*Math.sin(t*.008+pl.phase);ctx.save();if(pl.move===1){for(const side of [-1,1]){const xx=side<0?pl.x-4:pl.x+pl.w+4,yy=y+Math.min(16,h*.24);ctx.save();ctx.translate(xx,yy);ctx.scale(side,1);ctx.shadowBlur=12;ctx.shadowColor='#54dfff';ctx.fillStyle='#234c7a';ctx.strokeStyle='#a5efff';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(-2,-8);ctx.lineTo(8,-6);ctx.lineTo(10,0);ctx.lineTo(8,6);ctx.lineTo(-2,8);ctx.closePath();ctx.fill();ctx.stroke();const flame=ctx.createLinearGradient(8,0,23,0);flame.addColorStop(0,'#d8ffff');flame.addColorStop(.45,'#6ee9ff');flame.addColorStop(1,'#46bfff00');ctx.fillStyle=flame;ctx.beginPath();ctx.moveTo(8,-4);ctx.lineTo(8+(10+7*pulse),0);ctx.lineTo(8,4);ctx.fill();ctx.restore()}}else{for(const dx of [-pl.w*.23,pl.w*.23]){const xx=pl.x+pl.w/2+dx,yy=y+Math.min(h*.54,34);ctx.shadowBlur=11;ctx.shadowColor='#49dcff';ctx.fillStyle='#254b77';ctx.strokeStyle='#9beaff';ctx.lineWidth=1.5;ctx.beginPath();ctx.roundRect(xx-8,yy-4,16,12,4);ctx.fill();ctx.stroke();const flame=ctx.createLinearGradient(0,yy+5,0,yy+27);flame.addColorStop(0,'#e2ffff');flame.addColorStop(.4,'#72eaff');flame.addColorStop(1,'#51bfff00');ctx.fillStyle=flame;ctx.beginPath();ctx.moveTo(xx-6,yy+7);ctx.lineTo(xx,yy+12+12*pulse);ctx.lineTo(xx+6,yy+7);ctx.fill()}}ctx.restore()}
+function drawIceEngine(pl,y,h,t,layer){
+ // Engine recesses live INSIDE the rock. Only the exhaust escapes the platform.
+ const velocity=Math.cos(t*pl.speed+pl.phase);
+ const flicker=.88+.12*Math.sin(t*.023+pl.phase*3);
+ const sides=pl.move===1?[-1,1]:[];
+ for(const side of sides){
+  const ax=side<0?pl.x+7:pl.x+pl.w-7,ay=y+Math.min(17,h*.25);
+  const thrust=.16+.84*Math.max(0,-side*velocity);
+  ctx.save();ctx.translate(ax,ay);ctx.scale(side,1);
+  if(layer==='rear'){
+   const reach=(10+15*thrust)*flicker;
+   const bloom=ctx.createRadialGradient(10,0,1,13,0,reach+11);
+   bloom.addColorStop(0,'rgba(172,255,255,.48)');
+   bloom.addColorStop(.55,'rgba(52,184,255,.19)');
+   bloom.addColorStop(1,'rgba(36,130,255,0)');
+   ctx.fillStyle=bloom;ctx.beginPath();ctx.ellipse(13,0,reach+11,11+thrust*5,0,0,Math.PI*2);ctx.fill();
+   const flame=ctx.createLinearGradient(1,0,reach+8,0);
+   flame.addColorStop(0,'#efffff');flame.addColorStop(.26,'#88efff');
+   flame.addColorStop(.7,'rgba(35,176,255,.72)');flame.addColorStop(1,'rgba(33,123,255,0)');
+   ctx.fillStyle=flame;ctx.beginPath();
+   ctx.moveTo(1,-(3+thrust*2));
+   ctx.quadraticCurveTo(reach*.58,-7-thrust*2,reach+8,Math.sin(t*.014+side)*1.5);
+   ctx.quadraticCurveTo(reach*.55,7+thrust*2,1,3+thrust*2);
+   ctx.closePath();ctx.fill();
+   ctx.fillStyle='rgba(244,255,255,.83)';ctx.beginPath();
+   ctx.moveTo(1,-1.6);ctx.quadraticCurveTo(reach*.5,-2,reach*.82,0);
+   ctx.quadraticCurveTo(reach*.35,2,1,1.6);ctx.fill();
+   for(let i=0;i<2;i++){
+    const drift=(t*.025+i*.51+pl.phase)%1;
+    ctx.globalAlpha=(1-drift)*(.3+.55*thrust);
+    ctx.fillStyle=i?'#76e8ff':'#ebffff';
+    ctx.beginPath();ctx.arc(8+drift*(reach+9),Math.sin(t*.012+i*4)*3.5+(i?3:-3),.75+(1-drift)*1.3,0,Math.PI*2);ctx.fill();
+   }
+  }else{
+   // An icy stone socket and a recessed metal vent, partially buried in the cliff.
+   const shadow=ctx.createRadialGradient(-2,0,1,0,0,10);
+   shadow.addColorStop(0,'#06172f');shadow.addColorStop(.7,'#0e3155');shadow.addColorStop(1,'rgba(8,22,48,.12)');
+   ctx.fillStyle=shadow;ctx.beginPath();ctx.ellipse(-1,0,8.2,9,0,0,Math.PI*2);ctx.fill();
+   const metal=ctx.createLinearGradient(-7,-8,4,8);
+   metal.addColorStop(0,'#d2f6ff');metal.addColorStop(.25,'#6899bf');
+   metal.addColorStop(.7,'#223f64');metal.addColorStop(1,'#bceeff');
+   ctx.strokeStyle=metal;ctx.lineWidth=2.5;ctx.beginPath();ctx.ellipse(-1,0,5.9,7.3,0,0,Math.PI*2);ctx.stroke();
+   ctx.shadowColor='#55dfff';ctx.shadowBlur=6;
+   ctx.fillStyle='#79ecff';ctx.globalAlpha=.46+.42*thrust;
+   ctx.beginPath();ctx.ellipse(1,0,2.6,4.2,0,0,Math.PI*2);ctx.fill();
+   ctx.shadowBlur=0;ctx.globalAlpha=1;
+   // Rock and frost wrap the metal like a natural embedded mounting collar.
+   ctx.fillStyle='#36547c';ctx.beginPath();ctx.moveTo(-9,-9);ctx.lineTo(-6,-11);
+   ctx.lineTo(-2,-8);ctx.lineTo(-4,-6);ctx.lineTo(-9,-5);ctx.closePath();ctx.fill();
+   ctx.strokeStyle='#cbf5ff';ctx.lineWidth=1.4;ctx.beginPath();
+   ctx.moveTo(-8,-8);ctx.lineTo(-5,-10);ctx.lineTo(-1,-8);ctx.stroke();
+   ctx.strokeStyle='rgba(96,221,255,.5)';ctx.lineWidth=1;ctx.beginPath();
+   ctx.moveTo(-6,7);ctx.lineTo(-4,10);ctx.lineTo(-1,8);ctx.stroke();
+  }
+  ctx.restore();
+ }
+ if(pl.move===2){
+  // Wide cliffs have two integrated lift jets; narrow ones have a central jet.
+  const count=pl.w<112?1:2;
+  for(let i=0;i<count;i++){
+   const ax=pl.x+pl.w*(count===1?.5:(i===0?.38:.62));
+   const ay=y+h*(count===1?.7:.53);
+   const thrust=.53+.47*Math.max(0,-velocity);
+   ctx.save();ctx.translate(ax,ay);
+   if(layer==='rear'){
+    const reach=(13+13*thrust)*flicker;
+    const bloom=ctx.createRadialGradient(0,7,1,0,reach*.65,reach+9);
+    bloom.addColorStop(0,'rgba(198,254,255,.41)');
+    bloom.addColorStop(.5,'rgba(50,197,255,.2)');
+    bloom.addColorStop(1,'rgba(46,133,255,0)');
+    ctx.fillStyle=bloom;ctx.beginPath();ctx.ellipse(0,reach*.5,12+thrust*4,reach+11,0,0,Math.PI*2);ctx.fill();
+    const flame=ctx.createLinearGradient(0,2,0,reach+12);
+    flame.addColorStop(0,'#edffff');flame.addColorStop(.25,'#88efff');
+    flame.addColorStop(.7,'rgba(33,179,255,.78)');flame.addColorStop(1,'rgba(33,131,255,0)');
+    ctx.fillStyle=flame;ctx.beginPath();ctx.moveTo(-4,1);
+    ctx.quadraticCurveTo(-7-thrust*2,reach*.45,Math.sin(t*.015+i*2)*2,reach+9);
+    ctx.quadraticCurveTo(7+thrust*2,reach*.45,4,1);ctx.closePath();ctx.fill();
+    ctx.fillStyle='rgba(235,255,255,.9)';ctx.beginPath();
+    ctx.moveTo(-1.8,2);ctx.lineTo(0,reach*.78);ctx.lineTo(1.8,2);ctx.fill();
+    for(let j=0;j<2;j++){
+     const drift=(t*.018+i*.21+j*.5)%1;
+     ctx.globalAlpha=(1-drift)*.64;ctx.fillStyle='#a4f6ff';
+     ctx.beginPath();ctx.arc(Math.sin(t*.012+j*3)*3,7+drift*(reach+14),.9+(1-drift)*.8,0,Math.PI*2);ctx.fill();
+    }
+   }else{
+    // Rock-colored recess, narrow metal lip and glowing ice-blue nozzle.
+    const socket=ctx.createRadialGradient(0,1,0,0,0,11);
+    socket.addColorStop(0,'#081b39');socket.addColorStop(.66,'#244768');socket.addColorStop(1,'rgba(27,50,77,.12)');
+    ctx.fillStyle=socket;ctx.beginPath();ctx.ellipse(0,0,9,7.5,0,0,Math.PI*2);ctx.fill();
+    const rim=ctx.createLinearGradient(0,-6,0,7);
+    rim.addColorStop(0,'#e6fcff');rim.addColorStop(.4,'#648fb2');rim.addColorStop(1,'#193d69');
+    ctx.strokeStyle=rim;ctx.lineWidth=2.4;ctx.beginPath();ctx.ellipse(0,0,6.7,4.3,0,0,Math.PI*2);ctx.stroke();
+    ctx.globalAlpha=.6+.2*Math.sin(t*.012+i);ctx.shadowColor='#57e7ff';ctx.shadowBlur=6;
+    ctx.fillStyle='#7eefff';ctx.beginPath();ctx.ellipse(0,1.5,4.2,2.3,0,0,Math.PI*2);ctx.fill();
+    ctx.shadowBlur=0;ctx.globalAlpha=1;
+    ctx.fillStyle='#344f78';ctx.beginPath();ctx.moveTo(-11,-4);ctx.lineTo(-6,-7);ctx.lineTo(-3,-6);ctx.lineTo(-6,-2);ctx.closePath();ctx.fill();
+    ctx.strokeStyle='#c4efff';ctx.lineWidth=1.2;ctx.beginPath();ctx.moveTo(-10,-5);ctx.lineTo(-7,-7);ctx.lineTo(-4,-6);ctx.stroke();
+   }
+   ctx.restore();
+  }
+ }
+}
 function drawPlatform(pl){
  const y=pl.y-camera,w=pl.w,x=pl.x;
  if(y<-125||y>H+120)return;
@@ -94,12 +195,13 @@ function drawPlatform(pl){
  const h=sprite.naturalWidth?w*sprite.naturalHeight/sprite.naturalWidth:w*.42;
  const top=y-h*.10;
  ctx.shadowColor='#00112c';ctx.shadowBlur=5;ctx.shadowOffsetY=3;
+ if(pl.move)drawIceEngine(pl,y,h,performance.now(),'rear');
  if(sprite.complete&&sprite.naturalWidth){ctx.drawImage(sprite,x,top,w,h)}else{
  ctx.fillStyle='#254877';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+w,y);ctx.lineTo(x+w*.52,y+h-24);ctx.closePath();ctx.fill();
  ctx.fillStyle='#f0fcff';ctx.fillRect(x,y-8,w,13);
  }
  ctx.shadowBlur=0;ctx.shadowOffsetY=0;
- if(pl.move){drawIceEngine(pl,y,h,performance.now())}if(pl.boost){ctx.shadowBlur=13;ctx.shadowColor='#6effff';ctx.font='bold 22px system-ui';ctx.textAlign='center';ctx.fillStyle='#bfffff';ctx.fillText('✦',x+w/2,y-30)}
+ if(pl.move)drawIceEngine(pl,y,h,performance.now(),'front');if(pl.boost){ctx.shadowBlur=13;ctx.shadowColor='#6effff';ctx.font='bold 22px system-ui';ctx.textAlign='center';ctx.fillStyle='#bfffff';ctx.fillText('✦',x+w/2,y-30)}
  ctx.restore();
 }
 const frostCoinFrames=new Image();frostCoinFrames.src='assets/frost_coin_frames.png?v=1';const frostCoinFallback=new Image();frostCoinFallback.src='assets/Frost_Coin_Animation.gif?v=4';
