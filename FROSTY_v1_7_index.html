@@ -69,7 +69,128 @@ function updateMute(){for(const id of ['muteHud','muteMenu','muteSettings','mute
 function toggleMute(){muted=!muted;try{localStorage.setItem('frostyMuted',muted?'1':'0')}catch(e){}updateMute();if(!muted){unlockAudio();sound('click')}}
 for(const id of ['muteHud','muteMenu','muteSettings','mutePaused'])$(id).addEventListener('click',toggleMute);
 document.addEventListener('pointerdown',unlockAudio,{once:true});updateMute();
-let swipeDir=0,swipePointer=null,swipeStart=0;let ridingPlatform=null;let p={x:195,y:0,vx:0,vy:0,w:49,h:67,onGround:false,glow:0,face:'front',anim:0};function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);snow=Array.from({length:65},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.1,s:0.4+Math.random()*1.2}))}addEventListener('resize',resize);resize();function show(name){for(const n of ['menu','settings','paused','over'])$(n).classList.toggle('hidden',name!==n);$('hud').classList.toggle('hidden',name==='menu'||name==='settings');$('controls').classList.toggle('hidden',name!=='game');scene=name;updatePowerRack(performance.now())}document.querySelectorAll('[data-char]').forEach(b=>b.onclick=()=>{chosen=b.dataset.char;sound('click');document.querySelectorAll('[data-char]').forEach(x=>x.classList.toggle('active',x===b))});$('settingsBtn').onclick=()=>{sound('click');show('settings')};$('back').onclick=()=>show('menu');$('play').onclick=()=>{sound('click');start()};$('pause').onclick=()=>{resetInput();show('paused')};$('resume').onclick=()=>show('game');$('restart').onclick=()=>start();$('again').onclick=()=>start();$('home').onclick=()=>show('menu');$('toMenu').onclick=()=>show('menu');$('calibrate').onclick=async()=>{tiltZero=tilt;if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){try{await DeviceOrientationEvent.requestPermission()}catch(e){}}};addEventListener('deviceorientation',e=>{if(e.gamma!=null)tilt=e.gamma});function resetInput(){keys.left=keys.right=false;jumpPressed=false;swipeDir=0;swipePointer=null}function syncControls(){try{localStorage.setItem('frostySteer', $('steer').value)}catch(e){}const swipe=$('steer').value==='swipe';$('left').style.display=swipe?'none':'';$('right').style.display=swipe?'none':'';$('controls').style.justifyContent=swipe?'flex-end':'space-between';swipeDir=0;swipePointer=null;keys.left=keys.right=false}
+let swipeDir=0,swipePointer=null,swipeStart=0;let ridingPlatform=null;let p={x:195,y:0,vx:0,vy:0,w:49,h:67,onGround:false,glow:0,face:'front',anim:0};function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);snow=Array.from({length:65},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.1,s:0.4+Math.random()*1.2}))}addEventListener('resize',resize);resize();
+/* Profiles persist in this browser; all global entries require the real service. */
+const leaderboardApi=String(window.FROSTY_LEADERBOARD_API||'').trim().replace(/\/$/,'');
+let playerName='',playerToken='',profileSynced=false,profileReturn='menu',startAfterProfile=false,boardReturn='menu';
+try{playerName=(localStorage.getItem('frostyPlayerName')||'').trim();playerToken=localStorage.getItem('frostyPlayerToken')||''}catch(e){}
+if(!playerToken){
+ const randomBytes=new Uint8Array(24);
+ if(globalThis.crypto&&crypto.getRandomValues)crypto.getRandomValues(randomBytes);
+ else for(let i=0;i<randomBytes.length;i++)randomBytes[i]=Math.floor(Math.random()*256);
+ playerToken=Array.from(randomBytes,x=>x.toString(16).padStart(2,'0')).join('');
+ try{localStorage.setItem('frostyPlayerToken',playerToken)}catch(e){}
+}
+const nameRule=/^[\p{L}\p{N} ._-]{2,18}$/u;
+function profileShortcutText(){
+ $('profileShortcut').textContent=playerName?'👤 '+playerName+' · ÄNDERN':'👤 SPIELERNAMEN WÄHLEN';
+}
+profileShortcutText();
+function show(name){
+ for(const n of ['menu','settings','paused','over','profileModal','leaderboardPanel'])$(n).classList.toggle('hidden',name!==n);
+ $('hud').classList.toggle('hidden',['menu','settings','profileModal','leaderboardPanel'].includes(name));
+ $('controls').classList.toggle('hidden',name!=='game');
+ scene=name;
+ updatePowerRack(performance.now());
+ if(name==='over')submitGlobalScore(score);
+}
+function startWithName(){
+ sound('click');
+ if(!playerName){startAfterProfile=true;profileReturn='menu';$('nameError').textContent='';$('playerNameInput').value='';show('profileModal');$('playerNameInput').focus();}
+ else start();
+}
+async function leaderboardRequest(data){
+ if(!leaderboardApi)throw Error('Weltranglisten-Server noch nicht verbunden');
+ const opts=data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{method:'GET'};
+ const response=await fetch(leaderboardApi,opts);
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok||result.error){const error=new Error(result.error||'Verbindung fehlgeschlagen');error.status=response.status;throw error}
+ return result;
+}
+async function registerProfile(){
+ if(!leaderboardApi||!playerName)return false;
+ await leaderboardRequest({action:'register',name:playerName,token:playerToken});
+ profileSynced=true;return true;
+}
+async function submitGlobalScore(value){
+ if(!leaderboardApi||!playerName||!Number.isFinite(value)||value<1)return;
+ try{
+  if(!profileSynced)await registerProfile();
+  await leaderboardRequest({action:'score',token:playerToken,score:Math.floor(value)});
+ }catch(e){console.warn('FROSTY: Weltranglisten-Eintrag nicht gespeichert',e.message)}
+}
+function openProfile(returnTo='menu',playAfter=false){
+ profileReturn=returnTo;startAfterProfile=playAfter;
+ $('nameError').textContent='';$('playerNameInput').value=playerName;
+ show('profileModal');$('playerNameInput').focus();
+}
+$('playerNameForm').addEventListener('submit',async(e)=>{
+ e.preventDefault();
+ const name=$('playerNameInput').value.trim().replace(/\s+/g,' ');
+ if(!nameRule.test(name)){$('nameError').textContent='Bitte 2–18 Buchstaben, Zahlen, Leerzeichen, . _ oder - verwenden.';return}
+ const button=$('savePlayerName');button.disabled=true;
+ $('nameError').textContent='Speichere Spielernamen …';
+ try{
+  if(leaderboardApi){
+   await leaderboardRequest({action:'register',name,token:playerToken});
+   profileSynced=true;
+  }else profileSynced=false;
+  playerName=name;
+  try{localStorage.setItem('frostyPlayerName',playerName)}catch(e){}
+  profileShortcutText();
+  $('nameError').textContent='';
+  const play=startAfterProfile,ret=profileReturn;
+  startAfterProfile=false;
+  if(play)start();else show(ret);
+ }catch(err){
+  if(err.status===409)$('nameError').textContent='Dieser Name ist bereits vergeben. Bitte wähle einen anderen.';
+  else {$('nameError').textContent='Server nicht erreichbar. Name lokal gespeichert.';playerName=name;profileSynced=false;try{localStorage.setItem('frostyPlayerName',name)}catch(e){}profileShortcutText();}
+ }finally{button.disabled=false}
+});
+$('cancelPlayerName').onclick=()=>{startAfterProfile=false;show(profileReturn)};
+function makeRankRow(place,entry){
+ const row=document.createElement('div');row.className='leaderboard-entry';
+ if(entry.name===playerName)row.classList.add('mine');
+ const nr=document.createElement('span');nr.className='lb-rank';nr.textContent=place<4?'🏅'.repeat(place===1?1:0)||(place+'.'):(place+'.');
+ if(place===1)nr.textContent='🥇';else if(place===2)nr.textContent='🥈';else if(place===3)nr.textContent='🥉';
+ const name=document.createElement('span');name.className='lb-name';name.textContent=String(entry.name||'Spieler');
+ const score=document.createElement('span');score.className='lb-score';score.textContent=Number(entry.score||0).toLocaleString('de-DE')+' m';
+ row.append(nr,name,score);return row;
+}
+async function updateGlobalBoard(){
+ const list=$('leaderboardList');list.replaceChildren();
+ $('lbMyBest').textContent=best.toLocaleString('de-DE')+' m';
+ const status=$('leaderboardStatus');
+ if(!leaderboardApi){status.textContent='Die Weltrangliste ist vorbereitet, aber noch nicht online: Es fehlt die zentrale Datenbankverbindung. Dein Name und Rekord sind bisher nur auf diesem Gerät gespeichert.';return}
+ status.textContent='Lade weltweite Rekorde …';
+ try{
+  const result=await leaderboardRequest();
+  const entries=Array.isArray(result.entries)?result.entries:[];
+  if(!entries.length){status.textContent='Noch keine Weltranglisten-Einträge. Starte deine erste Runde!';return}
+  for(let i=0;i<entries.length;i++)list.appendChild(makeRankRow(i+1,entries[i]));
+  status.textContent='Die '+Math.min(entries.length,50)+' besten weltweiten Rekorde · '+(result.total||entries.length)+' Spieler';
+ }catch(e){status.textContent='Weltrangliste aktuell nicht erreichbar. Dein lokaler Rekord bleibt gespeichert.'}
+}
+function openWorldBoard(returnTo){boardReturn=returnTo;show('leaderboardPanel');updateGlobalBoard()}
+$('refreshLeaderboard').onclick=()=>updateGlobalBoard();
+$('closeLeaderboard').onclick=()=>show(boardReturn);
+$('leaderboardBtn').onclick=()=>openWorldBoard('menu');
+$('leaderboardAfterGame').onclick=()=>openWorldBoard('over');
+$('leaderboardPaused').onclick=()=>openWorldBoard('paused');
+$('profileShortcut').onclick=()=>openProfile('menu',false);
+document.querySelectorAll('[data-char]').forEach(b=>b.onclick=()=>{chosen=b.dataset.char;sound('click');document.querySelectorAll('[data-char]').forEach(x=>x.classList.toggle('active',x===b))});
+$('settingsBtn').onclick=()=>{sound('click');show('settings')};
+$('back').onclick=()=>show('menu');
+$('play').onclick=()=>startWithName();
+$('pause').onclick=()=>{resetInput();show('paused')};
+$('resume').onclick=()=>show('game');
+$('restart').onclick=()=>startWithName();
+$('again').onclick=()=>startWithName();
+$('home').onclick=()=>show('menu');
+$('toMenu').onclick=()=>show('menu');
+$('calibrate').onclick=async()=>{tiltZero=tilt;if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){try{await DeviceOrientationEvent.requestPermission()}catch(e){}}};
+addEventListener('deviceorientation',e=>{if(e.gamma!=null)tilt=e.gamma});
+function resetInput(){keys.left=keys.right=false;jumpPressed=false;swipeDir=0;swipePointer=null}function syncControls(){try{localStorage.setItem('frostySteer', $('steer').value)}catch(e){}const swipe=$('steer').value==='swipe';$('left').style.display=swipe?'none':'';$('right').style.display=swipe?'none':'';$('controls').style.justifyContent=swipe?'flex-end':'space-between';swipeDir=0;swipePointer=null;keys.left=keys.right=false}
 try{const saved=localStorage.getItem('frostySteer');if(['swipe','touch','tilt'].includes(saved))$('steer').value=saved}catch(e){}$('steer').addEventListener('change',syncControls);syncControls();
 document.addEventListener('pointerdown',e=>{if(scene!=='game'||$('steer').value!=='swipe'||swipePointer!==null||e.target.closest('button,select,.panel'))return;swipePointer=e.pointerId;swipeStart=e.clientX;swipeDir=0;e.preventDefault()});
 document.addEventListener('pointermove',e=>{if(e.pointerId!==swipePointer||scene!=='game')return;const dx=e.clientX-swipeStart;swipeDir=Math.abs(dx)<9?0:Math.max(-1,Math.min(1,dx/62));e.preventDefault()});
