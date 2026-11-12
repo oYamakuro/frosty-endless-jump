@@ -26,8 +26,8 @@ jobs:
           mask=np.zeros((h,w),dtype=np.uint8)
           # These marks are the two bright blue pendant-shaped dots on the scarf.
           # The eyes above y=147 remain untouched.
-          for x,y in [(69,163),(104,163)]:
-              cv2.ellipse(mask,(x,y),(10,11),0,0,360,255,-1)
+          for x,y in [(66,166),(99,166)]:
+              cv2.ellipse(mask,(x,y),(12,16),0,0,360,255,-1)
           restored=cv2.inpaint(rgb,mask,6,cv2.INPAINT_TELEA)
           output=Image.fromarray(restored,'RGB').convert('RGBA')
           output.putalpha(original.getchannel('A'))
