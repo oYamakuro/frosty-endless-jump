@@ -364,7 +364,61 @@ function celebratePersonalRecord(meters){
 $('recordToast').addEventListener('animationend',e=>{
  if(e.target===$('recordToast'))hideRecordToast();
 });
-function start(){resetInput();runStartBest=best;recordCelebrated=false;hideRecordToast();camera=0;highest=0;score=0;collected=0;platforms=[];tokens=[];powers=[];ridingPlatform=null;powerExpiries={magnet:0,shield:0,super:0};platformNumber=0;powerSpawnTarget=11+Math.floor(Math.random()*4);powerTypeIndex=Math.floor(Math.random()*3);particles=[];p={x:W/2,y:H-190,vx:0,vy:-11,w:Math.min(55,W*.14),h:Math.min(72,W*.19),onGround:false,glow:0,face:'back',anim:0};platforms.push({x:W/2-80,y:H-110,w:160,boost:false,kind:0,move:0,phase:0,baseX:W/2-80});lastPlatformX=W/2;let y=H-240;while(y>-400){addPlatform(y);y-=nextPlatformGap(y)}show('game')}function difficultyAt(y){const climbed=Math.max(0,H-240-y);return 1-Math.exp(-climbed/4100)}
+
+/* Permanent coin wallet: HUD tracks the current run only, menu shows total. */
+let totalCoins=0,runCoinsBanked=false,coinSettlementRaf=0;
+try{
+ const previousCoins=Number(localStorage.getItem('frostyTotalCoins')||0);
+ if(Number.isSafeInteger(previousCoins)&&previousCoins>=0)totalCoins=previousCoins;
+}catch(e){}
+function updateMenuCoins(){$('totalCoinsMenu').textContent=totalCoins.toLocaleString('de-DE')}
+updateMenuCoins();
+function bankRunCoins(){
+ if(runCoinsBanked)return null;
+ runCoinsBanked=true;
+ const before=totalCoins,earned=Math.max(0,Math.floor(collected));
+ totalCoins=Math.min(Number.MAX_SAFE_INTEGER,totalCoins+earned);
+ try{localStorage.setItem('frostyTotalCoins',String(totalCoins))}catch(e){}
+ updateMenuCoins();
+ return {before,earned,total:totalCoins};
+}
+function animateCoinSettlement({before,earned,total}){
+ if(coinSettlementRaf){cancelAnimationFrame(coinSettlementRaf);coinSettlementRaf=0}
+ const card=document.querySelector('.coin-settlement');
+ card.classList.remove('finished');
+ $('coinPrevious').textContent=before.toLocaleString('de-DE');
+ $('coinEarned').textContent='+0';
+ $('coinGrandTotal').textContent=before.toLocaleString('de-DE');
+ let started=null;
+ const duration=1750;
+ function step(time){
+  if(scene!=='over'){coinSettlementRaf=0;return}
+  if(started===null)started=time;
+  const progress=Math.min(1,(time-started)/duration);
+  const eased=1-Math.pow(1-progress,3.2);
+  const running=Math.min(earned,Math.round(earned*eased));
+  $('coinEarned').textContent='+'+running.toLocaleString('de-DE');
+  $('coinGrandTotal').textContent=(before+running).toLocaleString('de-DE');
+  if(progress<1)coinSettlementRaf=requestAnimationFrame(step);
+  else{
+   $('coinEarned').textContent='+'+earned.toLocaleString('de-DE');
+   $('coinGrandTotal').textContent=total.toLocaleString('de-DE');
+   card.classList.add('finished');
+   coinSettlementRaf=0;
+   if(earned>0)tone(680,.25,'sine',.065,1.35);
+  }
+ }
+ coinSettlementRaf=requestAnimationFrame(step);
+}
+function finishRun(){
+ const result=bankRunCoins();
+ if(!result)return;
+ $('result').textContent=score.toLocaleString('de-DE')+' m · Persönlicher Rekord '+best.toLocaleString('de-DE')+' m';
+ sound('gameover');
+ show('over');
+ animateCoinSettlement(result);
+}
+function start(){resetInput();runCoinsBanked=false;if(coinSettlementRaf){cancelAnimationFrame(coinSettlementRaf);coinSettlementRaf=0}runStartBest=best;recordCelebrated=false;hideRecordToast();camera=0;highest=0;score=0;collected=0;platforms=[];tokens=[];powers=[];ridingPlatform=null;powerExpiries={magnet:0,shield:0,super:0};platformNumber=0;powerSpawnTarget=11+Math.floor(Math.random()*4);powerTypeIndex=Math.floor(Math.random()*3);particles=[];p={x:W/2,y:H-190,vx:0,vy:-11,w:Math.min(55,W*.14),h:Math.min(72,W*.19),onGround:false,glow:0,face:'back',anim:0};platforms.push({x:W/2-80,y:H-110,w:160,boost:false,kind:0,move:0,phase:0,baseX:W/2-80});lastPlatformX=W/2;let y=H-240;while(y>-400){addPlatform(y);y-=nextPlatformGap(y)}show('game')}function difficultyAt(y){const climbed=Math.max(0,H-240-y);return 1-Math.exp(-climbed/4100)}
 function nextPlatformGap(y){
  // A typical jump clears ~207px: two full platform levels must not be skippable.
  // Single jumps always leave enough vertical headroom, even for lift platforms.
@@ -490,7 +544,7 @@ function update(dt){
    }
   }
  }
- if(p.vy<-.5)p.face='back';else if(p.vy>1)p.face='front';p.glow=Math.max(0,p.glow-dt*.65);if(p.glow>8&&Math.random()<.85)trail(p.x,p.y+p.h*.45,p.glow>35?5:2);for(const power of powers){if(!power.got&&Math.hypot(p.x-power.x,p.y-power.y)<p.w*.8+22){power.got=true;powerExpiries[power.kind]=now+powerDurations[power.kind];updatePowerRack(now);screenFlash=.5;burst(power.x,power.y,60,'spark');sound('power')}}for(const t of tokens){if(!t.got&&Math.hypot(p.x-t.x,p.y-t.y)<(isPowerActive('magnet',now)?105:p.w*.58+10)){t.got=true;collected++;burst(t.x,t.y,20,'gold');sound('coin')}}for(const q of particles){q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=.13*dt;q.rot+=.08*dt;q.life-=dt}particles=particles.filter(q=>q.life>0);const desired=Math.min(camera,p.y-H*.47);camera+=(desired-camera)*Math.min(1,.1*dt);highest=Math.max(highest,Math.max(0,(H-190-p.y)/10));score=Math.floor(highest);$('height').textContent=score+' m';$('coins').textContent=collected;if(score>best){if(!recordCelebrated&&score>runStartBest&&score>=Math.max(22,runStartBest+1))celebratePersonalRecord(score);best=score;try{localStorage.setItem('frostyBest',best)}catch(e){}}$('bestHud').textContent=best+' m';let top=Math.min(...platforms.map(x=>x.y));while(top>camera-230){top-=nextPlatformGap(top);addPlatform(top)}platforms=platforms.filter(x=>x.y<camera+H+130);tokens=tokens.filter(x=>x.y<camera+H+130&&!x.got);powers=powers.filter(x=>x.y<camera+H+130&&!x.got);if(p.y-camera>H+130){if(isPowerActive('shield',now)){powerExpiries.shield=0;updatePowerRack(now);p.y=camera+H*.35;p.vy=-15;screenFlash=.9;burst(p.x,p.y,75,'spark');sound('shield');return}if(score>best){best=score;try{localStorage.setItem('frostyBest',best)}catch(e){}}$('result').textContent=`${score} m · ${collected} Münzen · Rekord ${best} m`;sound('gameover');show('over')}}function rounded(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}const winterArt=new Image();winterArt.src='assets/winter_depth.jpg?v=1.7';
+ if(p.vy<-.5)p.face='back';else if(p.vy>1)p.face='front';p.glow=Math.max(0,p.glow-dt*.65);if(p.glow>8&&Math.random()<.85)trail(p.x,p.y+p.h*.45,p.glow>35?5:2);for(const power of powers){if(!power.got&&Math.hypot(p.x-power.x,p.y-power.y)<p.w*.8+22){power.got=true;powerExpiries[power.kind]=now+powerDurations[power.kind];updatePowerRack(now);screenFlash=.5;burst(power.x,power.y,60,'spark');sound('power')}}for(const t of tokens){if(!t.got&&Math.hypot(p.x-t.x,p.y-t.y)<(isPowerActive('magnet',now)?105:p.w*.58+10)){t.got=true;collected++;burst(t.x,t.y,20,'gold');sound('coin')}}for(const q of particles){q.x+=q.vx*dt;q.y+=q.vy*dt;q.vy+=.13*dt;q.rot+=.08*dt;q.life-=dt}particles=particles.filter(q=>q.life>0);const desired=Math.min(camera,p.y-H*.47);camera+=(desired-camera)*Math.min(1,.1*dt);highest=Math.max(highest,Math.max(0,(H-190-p.y)/10));score=Math.floor(highest);$('height').textContent=score+' m';$('coins').textContent=collected;if(score>best){if(!recordCelebrated&&score>runStartBest&&score>=Math.max(22,runStartBest+1))celebratePersonalRecord(score);best=score;try{localStorage.setItem('frostyBest',best)}catch(e){}}$('bestHud').textContent=best+' m';let top=Math.min(...platforms.map(x=>x.y));while(top>camera-230){top-=nextPlatformGap(top);addPlatform(top)}platforms=platforms.filter(x=>x.y<camera+H+130);tokens=tokens.filter(x=>x.y<camera+H+130&&!x.got);powers=powers.filter(x=>x.y<camera+H+130&&!x.got);if(p.y-camera>H+130){if(isPowerActive('shield',now)){powerExpiries.shield=0;updatePowerRack(now);p.y=camera+H*.35;p.vy=-15;screenFlash=.9;burst(p.x,p.y,75,'spark');sound('shield');return}if(score>best){best=score;try{localStorage.setItem('frostyBest',best)}catch(e){}}finishRun()}}function rounded(x,y,w,h,r){ctx.beginPath();ctx.roundRect(x,y,w,h,r)}const winterArt=new Image();winterArt.src='assets/winter_depth.jpg?v=1.7';
 function winterScenery(t){
  if(!winterArt.complete||!winterArt.naturalWidth)return false;
  const ratio=winterArt.naturalWidth/winterArt.naturalHeight;
