@@ -184,14 +184,14 @@ function musicTick(){if(scene!=='game'||muted||musicVol<=0||!audioCtx||audioCtx.
 function setVolumes(){musicVol=Number($('musicVol').value)/100;sfxVol=Number($('sfxVol').value)/100;try{localStorage.setItem('frostyMusicVol',String(musicVol));localStorage.setItem('frostySfxVol',String(sfxVol))}catch(e){}musicNext=0}
 try{const m=localStorage.getItem('frostyMusicVol'),e=localStorage.getItem('frostySfxVol');if(m!==null)$('musicVol').value=Math.round(Math.max(0,Math.min(1,Number(m)))*100);if(e!==null)$('sfxVol').value=Math.round(Math.max(0,Math.min(1,Number(e)))*100)}catch(e){}
 for(const id of ['musicVol','sfxVol'])$(id).addEventListener('input',setVolumes);setVolumes();
-function updateMute(){for(const id of ['muteHud','muteMenu','muteSettings','mutePaused']){const el=$(id);if(!el)continue;el.textContent=muted?(id==='muteHud'?'🔇':'🔇 TON AUS'):(id==='muteHud'?'🔊':'🔊 TON AN');el.setAttribute('aria-pressed',String(muted))}if(master)master.gain.setTargetAtTime(muted?0:.7,audioCtx.currentTime,.02)}
+function updateMute(){for(const id of ['muteHud','muteSettings']){const el=$(id);if(!el)continue;el.textContent=muted?(id==='muteHud'?'🔇':'🔇 TON AUS'):(id==='muteHud'?'🔊':'🔊 TON AN');el.setAttribute('aria-pressed',String(muted))}if(master)master.gain.setTargetAtTime(muted?0:.7,audioCtx.currentTime,.02)}
 function toggleMute(){muted=!muted;try{localStorage.setItem('frostyMuted',muted?'1':'0')}catch(e){}updateMute();if(!muted){unlockAudio();sound('click')}}
-for(const id of ['muteHud','muteMenu','muteSettings','mutePaused'])$(id).addEventListener('click',toggleMute);
+for(const id of ['muteHud','muteSettings'])$(id).addEventListener('click',toggleMute);
 document.addEventListener('pointerdown',unlockAudio,{once:true});updateMute();
 let swipeDir=0,swipePointer=null,swipeStart=0;let ridingPlatform=null;let p={x:195,y:0,vx:0,vy:0,w:49,h:67,onGround:false,glow:0,face:'front',anim:0};function resize(){dpr=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;cv.width=Math.round(W*dpr);cv.height=Math.round(H*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);snow=Array.from({length:65},()=>({x:Math.random()*W,y:Math.random()*H,r:1+Math.random()*2.1,s:0.4+Math.random()*1.2}))}addEventListener('resize',resize);resize();
 /* Profiles persist in this browser; all global entries require the real service. */
 const leaderboardApi=String(window.FROSTY_LEADERBOARD_API||'').trim().replace(/\/$/,'');
-let playerName='',playerToken='',profileSynced=false,profileReturn='menu',startAfterProfile=false,boardReturn='menu';
+let playerName='',playerToken='',profileSynced=false,profileReturn='menu',startAfterProfile=false,boardReturn='menu',settingsReturn='menu';
 try{playerName=(localStorage.getItem('frostyPlayerName')||'').trim();playerToken=localStorage.getItem('frostyPlayerToken')||''}catch(e){}
 if(!playerToken){
  const randomBytes=new Uint8Array(24);
@@ -202,7 +202,7 @@ if(!playerToken){
 }
 const nameRule=/^[\p{L}\p{N} ._-]{2,18}$/u;
 function profileShortcutText(){
- $('profileShortcut').textContent=playerName?'👤 '+playerName+' · ÄNDERN':'👤 SPIELERNAMEN WÄHLEN';
+ $('menuPlayerName').textContent=playerName?'👤 '+playerName:'👤 Spielername wird beim Start gewählt';
 }
 profileShortcutText();
 function show(name){
@@ -295,21 +295,25 @@ $('refreshLeaderboard').onclick=()=>updateGlobalBoard();
 $('closeLeaderboard').onclick=()=>show(boardReturn);
 $('leaderboardBtn').onclick=()=>openWorldBoard('menu');
 $('leaderboardAfterGame').onclick=()=>openWorldBoard('over');
-$('leaderboardPaused').onclick=()=>openWorldBoard('paused');
-$('profileShortcut').onclick=()=>openProfile('menu',false);
+$('changeName').onclick=()=>openProfile('settings',false);
 document.querySelectorAll('[data-char]').forEach(b=>b.onclick=()=>{chosen=b.dataset.char;sound('click');document.querySelectorAll('[data-char]').forEach(x=>x.classList.toggle('active',x===b))});
-$('settingsBtn').onclick=()=>{sound('click');show('settings')};
-$('back').onclick=()=>show('menu');
+$('settingsBtn').onclick=()=>{settingsReturn='menu';sound('click');show('settings')};
+$('pauseSettings').onclick=()=>{settingsReturn='paused';resetInput();sound('click');show('settings')};
+$('back').onclick=()=>show(settingsReturn);
 $('play').onclick=()=>startWithName();
 $('pause').onclick=()=>{resetInput();show('paused')};
 $('resume').onclick=()=>show('game');
-$('restart').onclick=()=>startWithName();
+$('restart').onclick=()=>{bankRunCoins();if(score>0)submitGlobalScore(score);startWithName()};
 $('again').onclick=()=>startWithName();
 $('home').onclick=()=>show('menu');
-$('toMenu').onclick=()=>show('menu');
+$('toMenu').onclick=()=>{bankRunCoins();if(score>0)submitGlobalScore(score);show('menu')};
 $('calibrate').onclick=async()=>{tiltZero=tilt;if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){try{await DeviceOrientationEvent.requestPermission()}catch(e){}}};
 addEventListener('deviceorientation',e=>{if(e.gamma!=null)tilt=e.gamma});
-function resetInput(){keys.left=keys.right=false;jumpPressed=false;swipeDir=0;swipePointer=null}function syncControls(){try{localStorage.setItem('frostySteer', $('steer').value)}catch(e){}const swipe=$('steer').value==='swipe';$('left').style.display=swipe?'none':'';$('right').style.display=swipe?'none':'';$('controls').style.justifyContent=swipe?'flex-end':'space-between';swipeDir=0;swipePointer=null;keys.left=keys.right=false}
+function resetInput(){keys.left=keys.right=false;jumpPressed=false;swipeDir=0;swipePointer=null}function syncJumpButton(){const manual=$('mode').value==='manual';$('rightgroup').style.display=manual?'flex':'none';$('jump').style.display=manual?'':'none';if(!manual)jumpPressed=false}
+try{const savedMode=localStorage.getItem('frostyJumpMode');if(savedMode==='auto'||savedMode==='manual')$('mode').value=savedMode}catch(e){}
+$('mode').addEventListener('change',()=>{try{localStorage.setItem('frostyJumpMode',$('mode').value)}catch(e){}syncJumpButton()});
+syncJumpButton();
+function syncControls(){try{localStorage.setItem('frostySteer', $('steer').value)}catch(e){}const swipe=$('steer').value==='swipe';$('left').style.display=swipe?'none':'';$('right').style.display=swipe?'none':'';$('controls').style.justifyContent=swipe?'flex-end':'space-between';swipeDir=0;swipePointer=null;keys.left=keys.right=false}
 try{const saved=localStorage.getItem('frostySteer');if(['swipe','touch','tilt'].includes(saved))$('steer').value=saved}catch(e){}$('steer').addEventListener('change',syncControls);syncControls();
 document.addEventListener('pointerdown',e=>{if(scene!=='game'||$('steer').value!=='swipe'||swipePointer!==null||e.target.closest('button,select,.panel'))return;swipePointer=e.pointerId;swipeStart=e.clientX;swipeDir=0;e.preventDefault()});
 document.addEventListener('pointermove',e=>{if(e.pointerId!==swipePointer||scene!=='game')return;const dx=e.clientX-swipeStart;swipeDir=Math.abs(dx)<9?0:Math.max(-1,Math.min(1,dx/62));e.preventDefault()});
