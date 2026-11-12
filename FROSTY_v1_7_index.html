@@ -84,6 +84,7 @@ mountain(H*.88,105,'#142e51',camera*.014);mountain(H*.99,90,'#1b4168',camera*.03
 ctx.save();ctx.globalAlpha=.5;for(let i=0;i<15;i++){let x=(i*93+27)%W,base=H*.95+(i%4)*18;ctx.strokeStyle='#0b2c45';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,base);ctx.lineTo(x,base-32-(i%5)*13);ctx.stroke();for(let k=0;k<3;k++){let y=base-12-k*13-(i%5)*3;ctx.fillStyle=k===0?'#d2ecff':'#143c55';ctx.beginPath();ctx.moveTo(x,y-23);ctx.lineTo(x-12-k*3,y+4);ctx.lineTo(x+12+k*3,y+4);ctx.fill()}}ctx.restore();
 for(const sn of snow){sn.y+=sn.s*.55;if(sn.y>H)sn.y=0;ctx.fillStyle='#d9f5ffb8';ctx.beginPath();ctx.arc(sn.x,sn.y,sn.r,0,7);ctx.fill()}}
 const rockSprites=['rock_a','rock_b','rock_c'].map(name=>{const img=new Image();img.src='assets/'+name+'.png?v=1.7';return img});
+const frostIntegratedRockFrames=new Image();frostIntegratedRockFrames.src='assets/frosty_rocks_integrated_thrusters_8frames.png?v=1';
 function drawIceEngine(pl,y,h,t,layer){
  // Engine recesses live INSIDE the rock. Only the exhaust escapes the platform.
  const velocity=Math.cos(t*pl.speed+pl.phase);
@@ -188,20 +189,41 @@ function drawIceEngine(pl,y,h,t,layer){
 }
 function drawPlatform(pl){
  const y=pl.y-camera,w=pl.w,x=pl.x;
- if(y<-125||y>H+120)return;
- const sprite=rockSprites[(pl.kind||0)%rockSprites.length];
+ if(y<-135||y>H+135)return;
+ const integrated=pl.move&&frostIntegratedRockFrames.complete&&
+   frostIntegratedRockFrames.naturalWidth===768&&frostIntegratedRockFrames.naturalHeight===172;
  ctx.save();
- // Sprite upper snow surface is aligned with the physics collision surface (pl.y).
- const h=sprite.naturalWidth?w*sprite.naturalHeight/sprite.naturalWidth:w*.42;
- const top=y-h*.10;
- if(pl.move)drawIceEngine(pl,y,h,performance.now(),'rear');
- ctx.shadowColor='#00112c';ctx.shadowBlur=5;ctx.shadowOffsetY=3;
- if(sprite.complete&&sprite.naturalWidth){ctx.drawImage(sprite,x,top,w,h)}else{
- ctx.fillStyle='#254877';ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+w,y);ctx.lineTo(x+w*.52,y+h-24);ctx.closePath();ctx.fill();
- ctx.fillStyle='#f0fcff';ctx.fillRect(x,y-8,w,13);
+ if(integrated){
+  // Both moving directions use the SAME original icy rock design.
+  // The sprite row only changes where its built-in crystal engines vent.
+  const row=pl.move===1?0:1;
+  const frame=Math.floor((performance.now()+pl.phase*175)/115)%8;
+  const factor=w/75;
+  const drawW=96*factor,drawH=86*factor;
+  const drawX=x-(drawW-w)*.5,drawY=y-7*factor;
+  ctx.shadowColor='#12345e';ctx.shadowBlur=3;
+  ctx.drawImage(frostIntegratedRockFrames,frame*96,row*86,96,86,drawX,drawY,drawW,drawH);
+  ctx.shadowBlur=0;
+ }else{
+  // Safe fallback while the new image loads: preserve existing working platforms.
+  const sprite=rockSprites[(pl.kind||0)%rockSprites.length];
+  const h=sprite.naturalWidth?w*sprite.naturalHeight/sprite.naturalWidth:w*.42;
+  const top=y-h*.10;
+  if(pl.move)drawIceEngine(pl,y,h,performance.now(),'rear');
+  ctx.shadowColor='#00112c';ctx.shadowBlur=5;ctx.shadowOffsetY=3;
+  if(sprite.complete&&sprite.naturalWidth){ctx.drawImage(sprite,x,top,w,h)}else{
+   ctx.fillStyle='#254877';ctx.beginPath();ctx.moveTo(x,y);
+   ctx.lineTo(x+w,y);ctx.lineTo(x+w*.52,y+h-24);ctx.closePath();ctx.fill();
+   ctx.fillStyle='#f0fcff';ctx.fillRect(x,y-8,w,13);
+  }
+  ctx.shadowBlur=0;ctx.shadowOffsetY=0;
+  if(pl.move)drawIceEngine(pl,y,h,performance.now(),'front');
  }
- ctx.shadowBlur=0;ctx.shadowOffsetY=0;
- if(pl.move)drawIceEngine(pl,y,h,performance.now(),'front');if(pl.boost){ctx.shadowBlur=13;ctx.shadowColor='#6effff';ctx.font='bold 22px system-ui';ctx.textAlign='center';ctx.fillStyle='#bfffff';ctx.fillText('✦',x+w/2,y-30)}
+ if(pl.boost){
+  ctx.shadowBlur=13;ctx.shadowColor='#6effff';
+  ctx.font='bold 22px system-ui';ctx.textAlign='center';ctx.fillStyle='#bfffff';
+  ctx.fillText('✦',x+w/2,y-30);
+ }
  ctx.restore();
 }
 const frostCoinFrames=new Image();frostCoinFrames.src='assets/frost_coin_frames.png?v=1';const frostCoinFallback=new Image();frostCoinFallback.src='assets/Frost_Coin_Animation.gif?v=4';
