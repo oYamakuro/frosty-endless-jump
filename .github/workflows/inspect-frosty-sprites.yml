@@ -1,0 +1,35 @@
+name: Inspect Frosty sprite face
+on:
+  push:
+    paths:
+      - '.github/workflows/inspect-frosty-sprites.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  sprites:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract face positions to compressed contact sheet
+        run: |
+          python3 -m pip install -q Pillow
+          python3 - <<'PY'
+          from PIL import Image, ImageDraw
+          import io,base64
+          files=['frosty_front','frosty_side','frosty_jump','frosty_back']
+          canvas=Image.new('RGBA',(640,440),(20,32,58,255))
+          for i,n in enumerate(files):
+              im=Image.open('assets/'+n+'.png').convert('RGBA')
+              print('ASSET',n, im.size, 'alpha_bbox', im.getbbox())
+              im.thumbnail((155,350), Image.Resampling.LANCZOS)
+              x=i*160+(160-im.width)//2
+              canvas.alpha_composite(im,(x,40))
+              ImageDraw.Draw(canvas).text((i*160+10,400),n,fill='white')
+          out=io.BytesIO()
+          canvas.convert('RGB').save(out,format='WEBP',quality=67)
+          print('SPRITE_SHEET_B64_START')
+          print(base64.b64encode(out.getvalue()).decode('ascii'))
+          print('SPRITE_SHEET_B64_END')
+          PY
