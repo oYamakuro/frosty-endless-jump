@@ -187,6 +187,77 @@ function drawIceEngine(pl,y,h,t,layer){
   }
  }
 }
+// Side engines use the same ice-rock sprite as the vertical thrusters.
+// Their directional exhaust is drawn in front of and behind the embedded nozzle,
+// so it remains vivid even when the original sprite is scaled down on mobile.
+function drawIntegratedSideExhaust(pl,y,t,layer){
+ const velocity=Math.cos(t*pl.speed+pl.phase);
+ const scale=Math.max(.85,Math.min(1.5,pl.w/96));
+ const baseY=y+pl.w*.245;
+ for(const side of [-1,1]){
+  const drive=.47+.53*Math.max(0,-side*velocity);
+  const pulse=.90+.10*Math.sin(t*.027+pl.phase*3+side);
+  const reach=(31+37*drive)*scale*pulse;
+  const ax=pl.x+(side<0?pl.w*.105:pl.w*.895);
+  ctx.save();ctx.translate(ax,baseY);ctx.scale(side,1);
+  if(layer==='rear'){
+   // Strong but localized blue ice flame -- no opaque halo over the rock.
+   const bloom=ctx.createRadialGradient(reach*.18,0,2,reach*.33,0,reach*.8);
+   bloom.addColorStop(0,'rgba(164,253,255,.48)');
+   bloom.addColorStop(.43,'rgba(45,199,255,.28)');
+   bloom.addColorStop(1,'rgba(36,136,255,0)');
+   ctx.fillStyle=bloom;ctx.beginPath();ctx.ellipse(reach*.42,0,reach*.68,12*scale+drive*6,0,0,Math.PI*2);ctx.fill();
+   const flame=ctx.createLinearGradient(0,0,reach+9,0);
+   flame.addColorStop(0,'rgba(232,255,255,.98)');
+   flame.addColorStop(.19,'rgba(111,244,255,.98)');
+   flame.addColorStop(.49,'rgba(24,187,255,.94)');
+   flame.addColorStop(.77,'rgba(33,138,255,.73)');
+   flame.addColorStop(1,'rgba(30,124,255,0)');
+   ctx.fillStyle=flame;ctx.beginPath();
+   ctx.moveTo(-3,-(5.5+drive*2)*scale);
+   ctx.bezierCurveTo(reach*.27,-(11+drive*3)*scale,reach*.71,-7*scale,reach+7,Math.sin(t*.018+side*2)*2.7*scale);
+   ctx.bezierCurveTo(reach*.69,8*scale,reach*.28,(11+drive*3)*scale,-3,(5.5+drive*2)*scale);
+   ctx.closePath();ctx.fill();
+   // Bright crystalline inner core and tapered icy streaks.
+   ctx.shadowColor='#8ffbff';ctx.shadowBlur=7*scale;
+   const inner=ctx.createLinearGradient(0,0,reach*.85,0);
+   inner.addColorStop(0,'#f5ffff');inner.addColorStop(.38,'rgba(172,252,255,.95)');
+   inner.addColorStop(1,'rgba(93,239,255,0)');
+   ctx.fillStyle=inner;ctx.beginPath();
+   ctx.moveTo(0,-2.3*scale);
+   ctx.quadraticCurveTo(reach*.49,-3.4*scale,reach*.89,0);
+   ctx.quadraticCurveTo(reach*.49,3.4*scale,0,2.3*scale);ctx.fill();
+   ctx.shadowBlur=0;
+   // Ice threads spiral along the exhaust instead of looking like a plain triangle.
+   ctx.lineWidth=1.35*scale;ctx.lineCap='round';
+   for(let k=0;k<3;k++){
+    const rr=.24+k*.205,yy=Math.sin(t*.014+k*1.85+pl.phase)*4.2*scale;
+    ctx.globalAlpha=.36+.20*Math.sin(t*.013+k)**2;
+    ctx.strokeStyle=k===1?'#e0ffff':'#68dbff';ctx.beginPath();
+    ctx.moveTo(reach*rr,yy);
+    ctx.quadraticCurveTo(reach*(rr+.09),yy+(k===1?5:-5)*scale,reach*(rr+.22),yy*.3);
+    ctx.stroke();
+   }
+  }else{
+   // Embedded crystal nozzle glow is kept tiny; the rock itself stays untouched.
+   const lip=ctx.createRadialGradient(-1,0,1,0,0,12*scale);
+   lip.addColorStop(0,'rgba(241,255,255,.85)');
+   lip.addColorStop(.36,'rgba(108,237,255,.53)');
+   lip.addColorStop(1,'rgba(88,192,255,0)');
+   ctx.fillStyle=lip;ctx.beginPath();ctx.ellipse(0,0,11*scale,9*scale,0,0,Math.PI*2);ctx.fill();
+   // Tiny ice fragments drift away with deterministic frame-to-frame movement.
+   for(let k=0;k<4;k++){
+    const progress=((t*.00052*(1+k*.13)+k*.253+pl.phase*.13)%1+1)%1;
+    const px=9*scale+progress*(reach+11*scale),py=Math.sin(t*.011+k*2.6+side)* (4+k*2.5)*scale;
+    ctx.globalAlpha=(1-progress)*(.58+.25*drive);
+    ctx.fillStyle=k%2?'#f3ffff':'#74eaff';
+    ctx.shadowColor='#69deff';ctx.shadowBlur=3*scale;
+    ctx.beginPath();ctx.arc(px,py,(1.2+(1-progress)*.8)*scale,0,Math.PI*2);ctx.fill();
+   }
+  }
+  ctx.restore();
+ }
+}
 function drawPlatform(pl){
  const y=pl.y-camera,w=pl.w,x=pl.x;
  if(y<-135||y>H+135)return;
@@ -201,9 +272,12 @@ function drawPlatform(pl){
   const factor=w/75;
   const drawW=96*factor,drawH=86*factor;
   const drawX=x-(drawW-w)*.5,drawY=y-7*factor;
+  const renderTime=performance.now();
+  if(pl.move===1)drawIntegratedSideExhaust(pl,y,renderTime,'rear');
   ctx.shadowColor='#12345e';ctx.shadowBlur=3;
   ctx.drawImage(frostIntegratedRockFrames,frame*96,row*86,96,86,drawX,drawY,drawW,drawH);
   ctx.shadowBlur=0;
+  if(pl.move===1)drawIntegratedSideExhaust(pl,y,renderTime,'front');
  }else{
   // Safe fallback while the new image loads: preserve existing working platforms.
   const sprite=rockSprites[(pl.kind||0)%rockSprites.length];
