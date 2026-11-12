@@ -392,7 +392,7 @@ function animateCoinSettlement({before,earned,total}){
  let started=null;
  const duration=1750;
  function step(time){
-  if(scene!=='over'){coinSettlementRaf=0;return}
+  if(scene!=='over'){$('coinEarned').textContent='+'+earned.toLocaleString('de-DE');$('coinGrandTotal').textContent=total.toLocaleString('de-DE');card.classList.add('finished');coinSettlementRaf=0;return}
   if(started===null)started=time;
   const progress=Math.min(1,(time-started)/duration);
   const eased=1-Math.pow(1-progress,3.2);
