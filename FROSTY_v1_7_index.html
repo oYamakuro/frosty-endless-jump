@@ -148,6 +148,9 @@
  padding:4px 8px;background:linear-gradient(145deg,#0a304bd9,#123957cc)}
 #hud .stat:nth-child(3) strong{font-size:14px}
 @media(max-width:355px){#menu .coin-wallet{left:8px;padding:5px 7px}#hud .stat:nth-child(3){top:50px}}
+
+.score-sync-note{display:block;min-height:16px;font-size:11px;text-align:center;
+ color:#a9d8ec;font-weight:700;letter-spacing:.01em}
 </style></head><body><canvas id="game"></canvas><div id="ui"><div id="hud" class="hidden"><span class="stat"><small>HÖHE</small><strong id="height">0 m</strong></span><span class="stat"><small>REKORD</small><strong id="bestHud">0 m</strong></span><span class="stat"><small>❄ MÜNZEN</small><strong id="coins">0</strong></span><button id="muteHud" aria-label="Ton stummschalten">🔊</button><button id="pause">Ⅱ</button></div><div id="powerRack" class="hidden" aria-label="Power-up-Anzeige"><div class="rackTitle">✦ POWER-UPS ✦</div><div class="power-row" data-power="magnet"><span class="powerIcon" aria-hidden="true"></span><span class="powerWords"><span class="powerName">MAGNET</span><span class="powerTime">SAMMELN</span></span><span class="powerProgress"></span></div><div class="power-row" data-power="shield"><span class="powerIcon" aria-hidden="true"></span><span class="powerWords"><span class="powerName">SCHILD</span><span class="powerTime">SAMMELN</span></span><span class="powerProgress"></span></div><div class="power-row" data-power="super"><span class="powerIcon" aria-hidden="true"></span><span class="powerWords"><span class="powerName">EISSTIEFEL</span><span class="powerTime">SAMMELN</span></span><span class="powerProgress"></span></div></div><div id="controls" class="hidden"><div style="display:flex;gap:12px"><button class="control" id="left">❮</button><button class="control" id="right">❯</button></div><div id="rightgroup"><button class="control" id="jump">⇧</button></div></div><div id="recordToast" aria-live="polite" role="status"><span class="record-medal" aria-hidden="true">🏆</span><span class="record-words"><strong>NEUER PERSÖNLICHER REKORD!</strong><small id="recordToastHeight">0 m erreicht</small></span></div><div id="profileModal" class="panel hidden"><h1>❄ FROSTY</h1><h2>Dein Spielername</h2><p class="profile-note">Wähle einen Namen, unter dem dein Rekord später in der Weltrangliste erscheinen soll.</p><form id="playerNameForm" autocomplete="off"><input id="playerNameInput" type="text" maxlength="18" minlength="2" placeholder="Dein Spielername" aria-label="Spielername" autocomplete="nickname" spellcheck="false" required><span id="nameError" aria-live="polite"></span><button class="btn" id="savePlayerName" type="submit">❄ NAMEN SPEICHERN</button></form><button class="btn" id="cancelPlayerName" type="button">ZURÜCK</button><small>2–18 Zeichen · keine persönlichen Daten erforderlich</small></div><div id="leaderboardPanel" class="panel hidden"><h1>🏆</h1><h2>WELTRANGLISTE</h2><div class="lb-mybest"><span>Dein Rekord</span><strong id="lbMyBest">0 m</strong></div><p id="leaderboardStatus" aria-live="polite">Lade Weltrangliste …</p><div id="leaderboardList" aria-label="Spieler-Rangliste"></div><button class="btn" id="refreshLeaderboard" type="button">↻ AKTUALISIEREN</button><button class="btn" id="closeLeaderboard" type="button">ZURÜCK</button></div><div id="menu" class="panel">
  <h1>FROSTY</h1>
  <div id="menuIdentity" class="menu-identity"><span id="menuPlayerName">👤 Spielername</span></div>
@@ -178,7 +181,7 @@
 </div>
 <div id="over" class="panel hidden">
  <h1>RUNDE BEENDET</h1>
- <p id="result"></p>
+ <p id="result"></p><small id="scoreSyncState" class="score-sync-note" role="status" aria-live="polite"></small>
  <section class="coin-settlement" aria-label="Münzabrechnung">
   <div class="settle-heading">❄ DEINE MÜNZENABRECHNUNG ❄</div>
   <div class="settle-row"><span>Bisher gesammelt</span><strong id="coinPrevious">0</strong></div>
@@ -229,7 +232,16 @@ function show(name){
  $('controls').classList.toggle('hidden',name!=='game');
  scene=name;
  updatePowerRack(performance.now());
- if(name==='over')submitGlobalScore(score);
+ if(name==='over'){
+  $('scoreSyncState').textContent='☁️ Rangliste wird abgeglichen …';
+  submitGlobalScore(score).then(ok=>{
+   if(scene==='over')$('scoreSyncState').textContent=ok?
+    '✓ Dein persönlicher Rekord ist online gespeichert':
+    scoreSyncError?.status===409?
+    '⚠ Spielername bereits vergeben – bitte in Einstellungen ändern':
+    '⚠ Rekord lokal gesichert – Online-Abgleich läuft später erneut';
+  });
+ }
 }
 function startWithName(){
  sound('click');
@@ -284,6 +296,7 @@ async function flushGlobalBest(){
    }
    scoreSyncError=null;scoreSyncRetry=0;
    if(scoreRetryTimer){clearTimeout(scoreRetryTimer);scoreRetryTimer=0}
+   if(scene==='over')$('scoreSyncState').textContent='✓ Dein persönlicher Rekord ist online gespeichert';
    return true;
   }catch(err){
    scoreSyncError=err;
@@ -354,7 +367,7 @@ async function updateGlobalBoard(){
   const entries=Array.isArray(result.entries)?result.entries:[];
   if(!entries.length){status.textContent=!uploaded&&pendingGlobalBest?'Dein Rekord wird noch synchronisiert. Bitte erneut aktualisieren.':'Noch keine Weltranglisten-Einträge. Starte deine erste Runde!';return}
   for(let i=0;i<entries.length;i++)list.appendChild(makeRankRow(i+1,entries[i]));
-  status.textContent='Die '+Math.min(entries.length,50)+' besten weltweiten Rekorde · '+(result.total||entries.length)+' Spieler'+(!uploaded&&pendingGlobalBest?' · Dein Rekord wird erneut synchronisiert':'');
+  status.textContent='Die '+Math.min(entries.length,50)+' besten weltweiten Rekorde · '+(result.total||entries.length)+' Spieler'+(!uploaded&&pendingGlobalBest?(scoreSyncError?.status===409?' · Spielername bereits vergeben: unter Einstellungen ändern':' · Dein Rekord wird erneut synchronisiert'):'');
  }catch(e){status.textContent='Weltrangliste aktuell nicht erreichbar. Dein lokaler Rekord bleibt gespeichert.'}
 }
 function openWorldBoard(returnTo){boardReturn=returnTo;show('leaderboardPanel');updateGlobalBoard()}
