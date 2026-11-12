@@ -1,0 +1,66 @@
+name: Create Frosty eye-free sprites
+on:
+  push:
+    paths:
+      - '.github/workflows/create-frosty-faceless.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  faces:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Remove cyan eyes without altering Frosty's outfit or pose
+        run: |
+          python3 -m pip install -q Pillow
+          python3 - <<'PY'
+          from PIL import Image,ImageDraw,ImageFilter
+          import base64,io
+          operations = [
+            ('frosty_front',[(69,171,13,17),(104,171,13,17)]),
+            ('frosty_side',[(63,153,13,17)])
+          ]
+          montage=Image.new('RGBA',(660,375),(20,33,60,255))
+          for i,(name,eyes) in enumerate(operations):
+            im=Image.open('assets/'+name+'.png').convert('RGBA')
+            old=im.copy()
+            mask=Image.new('L',im.size,0)
+            draw=ImageDraw.Draw(mask)
+            for x,y,rx,ry in eyes:
+              draw.ellipse((x-rx,y-ry,x+rx,y+ry),fill=255)
+            mask=mask.filter(ImageFilter.GaussianBlur(2.2))
+            # Preserve original silhouette and fabric; darken only the tiny eye shapes.
+            dark=Image.new('RGBA', im.size,(3,13,32,255))
+            im=Image.composite(dark,im,mask)
+            # Preserve the original alpha channel exactly.
+            im.putalpha(old.getchannel('A'))
+            out='assets/'+name+'_faceless.png'
+            im.save(out,optimize=True)
+            print('FACELESS',name,im.size,'eyes',eyes)
+            a=old.copy();b=im.copy()
+            a.thumbnail((160,310));b.thumbnail((160,310))
+            offset=i*330
+            montage.alpha_composite(a,(offset+(160-a.width)//2,35))
+            montage.alpha_composite(b,(offset+165+(160-b.width)//2,35))
+            d=ImageDraw.Draw(montage)
+            d.text((offset+12,350),name+' original',fill='#c9edff')
+            d.text((offset+178,350),'without eyes',fill='#c9edff')
+          buf=io.BytesIO()
+          montage.convert('RGB').save(buf,format='WEBP',quality=72)
+          print('FACELESS_PREVIEW_START')
+          print(base64.b64encode(buf.getvalue()).decode('ascii'))
+          print('FACELESS_PREVIEW_END')
+          PY
+      - name: Save eye-free sprites to game assets
+        run: |
+          git config user.name "FROSTY Art"
+          git config user.email "frosty-art[bot]@users.noreply.github.com"
+          git add assets/frosty_front_faceless.png assets/frosty_side_faceless.png
+          if ! git diff --cached --quiet; then
+            git commit -m "Add consistent eye-free Frosty front and side sprites"
+            git push
+          fi
