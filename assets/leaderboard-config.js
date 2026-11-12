@@ -1,3 +1,2 @@
-// Set this URL after deploying the Supabase Edge Function.
-// Example: https://YOUR-PROJECT.supabase.co/functions/v1/frosty-leaderboard
-window.FROSTY_LEADERBOARD_API = '';
+// FROSTY worldwide leaderboard — official Supabase Edge Function endpoint.
+window.FROSTY_LEADERBOARD_API = 'https://ojbueqtxceunutuanmlh.supabase.co/functions/v1/frosty-leaderboard';
