@@ -591,108 +591,113 @@ const rockSprites=['rock_a','rock_b','rock_c'].map(name=>{const img=new Image();
 // Frosty unified rock engines v5: the SAME rock_a/rock_b/rock_c graphics
 // are rendered for static, horizontal and vertical platforms.
 // Only tiny embedded frost-crystal nozzles and their directional exhaust differ.
+
+/* v2.3 | Seamless crystalline fissures carved INTO the original rock textures.
+   Thrust lights only the nozzle opposing actual travel: left->right, right->left,
+   and bottom during ascent. A descending lift has no active exhaust at all. */
 function frostNozzles(pl,y,h){
- const scale=Math.max(.75,Math.min(1.32,pl.w/112));
+ const scale=Math.max(.72,Math.min(1.25,pl.w/115));
  if(pl.move===1){
-  // The nozzles are recessed into the front of both rock ends.
+  const inset=Math.min(10,pl.w*.095);
   return [
-   {x:pl.x+Math.min(12,pl.w*.13),y:y+h*.23,angle:Math.PI,scale,side:-1},
-   {x:pl.x+pl.w-Math.min(12,pl.w*.13),y:y+h*.23,angle:0,scale,side:1}
+   {x:pl.x+inset,y:y+h*.24,angle:Math.PI,side:-1,scale},
+   {x:pl.x+pl.w-inset,y:y+h*.24,angle:0,side:1,scale}
   ];
  }
  if(pl.move===2){
-  // The SAME nozzles point downwards underneath the floating rock.
-  const positions=pl.w<97?[.5]:[.32,.68];
-  return positions.map((u,i)=>({x:pl.x+pl.w*u,y:y+h*.52,angle:Math.PI*.5,scale,side:i===0?-1:1}));
+  const fractions=pl.w<94?[.5]:[.32,.68];
+  return fractions.map((u,i)=>({x:pl.x+pl.w*u,y:y+h*.52,angle:Math.PI/2,side:i===0?-1:1,scale}));
  }
  return [];
 }
+function rockThrusterStrength(pl,n,t){
+ const cycle=Math.cos(t*pl.speed+pl.phase)*pl.amp*pl.speed*16.6667;
+ const motion=pl.move===1?(Number.isFinite(pl.dx)?pl.dx:cycle):
+                        (Number.isFinite(pl.dy)?pl.dy:cycle);
+ // Small dead-zone avoids flickering when a platform changes direction.
+ const threshold=.055;
+ if(pl.move===1){
+  const permitted=n.side<0?motion>threshold:motion<-threshold;
+  return permitted?Math.min(1,Math.max(.4,Math.abs(motion)/.45)):0;
+ }
+ if(pl.move===2)return motion< -threshold?Math.min(1,Math.max(.4,-motion/.35)):0;
+ return 0;
+}
 function drawFrostJet(pl,nozzle,t,part){
- // Both horizontal and vertical engines are crystalline veins growing out
- // of the original rock texture, not attached metal rockets.
  const {x,y,angle,side,scale}=nozzle;
- const velocity=Math.cos(t*pl.speed+pl.phase);
- const direction=pl.move===1?Math.max(0,-side*velocity):Math.max(0,-velocity);
- const thrust=.62+.38*direction;
- const sway=Math.sin(t*.014+pl.phase+side)*.8;
- const length=(36+16*thrust)*scale*(.94+.06*Math.sin(t*.02+side));
+ const power=rockThrusterStrength(pl,nozzle,t);
  ctx.save();ctx.translate(x,y);ctx.rotate(angle);
  if(part==='behind'){
-  // Transparent overlapping ice ribbons replace the old flat triangular flame.
+  if(power<=0){ctx.restore();return}
+  // Natural frost-vapor ribbons: translucent and irregular, NO jet cone or metal.
   ctx.globalCompositeOperation='screen';
-  const aura=ctx.createRadialGradient(3,0,1,length*.35,0,length*.70);
-  aura.addColorStop(0,'rgba(106,229,255,.37)');
-  aura.addColorStop(.57,'rgba(47,168,252,.15)');
-  aura.addColorStop(1,'rgba(54,147,247,0)');
-  ctx.fillStyle=aura;ctx.beginPath();
-  ctx.ellipse(length*.38,0,length*.66,(8+thrust*3)*scale,0,0,Math.PI*2);ctx.fill();
-  for(let strand=0;strand<5;strand++){
-   const offset=(strand-2)*2.1*scale;
-   const wind=Math.sin(t*.016+strand*1.8+pl.phase)*3.3*scale;
-   const taper=length*(strand%2?.79:1);
-   const grad=ctx.createLinearGradient(0,offset,taper+3,wind);
-   grad.addColorStop(0,strand===2?'rgba(231,255,255,.95)':'rgba(134,242,255,.78)');
-   grad.addColorStop(.38,strand===2?'rgba(119,238,255,.83)':'rgba(73,205,255,.59)');
-   grad.addColorStop(1,'rgba(74,171,252,0)');
+  const wave=Math.sin(t*.013+pl.phase+side*1.7);
+  const reach=(29+21*power)*scale*(.94+.06*wave);
+  const halo=ctx.createRadialGradient(7*scale,0,0,reach*.42,0,reach*.74);
+  halo.addColorStop(0,'rgba(114,228,255,.45)');
+  halo.addColorStop(.42,'rgba(51,187,245,.24)');
+  halo.addColorStop(1,'rgba(41,140,234,0)');
+  ctx.fillStyle=halo;ctx.beginPath();
+  ctx.ellipse(reach*.42,0,reach*.65,(7+power*4)*scale,0,0,Math.PI*2);ctx.fill();
+  // Three ice-crystal wisps, each with its own curved airflow and transparent end.
+  for(let j=0;j<4;j++){
+   const offset=(j-1.5)*2.35*scale;
+   const sway=Math.sin(t*.018+j*1.9+pl.phase)*3.2*scale;
+   const end=reach*(.82+.06*j);
+   const grad=ctx.createLinearGradient(-3,offset,end,sway);
+   grad.addColorStop(0,j===1?'rgba(240,255,255,.96)':'rgba(132,238,251,.72)');
+   grad.addColorStop(.28,'rgba(108,226,250,.68)');
+   grad.addColorStop(.67,'rgba(66,191,245,.36)');
+   grad.addColorStop(1,'rgba(34,146,226,0)');
    ctx.strokeStyle=grad;
-   ctx.lineWidth=(strand===2?3.5:2.6)*scale;
-   ctx.lineCap='round';
-   ctx.shadowColor='#54d9ff';ctx.shadowBlur=(strand===2?8:4)*scale;
-   ctx.beginPath();ctx.moveTo(-2*scale,offset*.54);
-   ctx.bezierCurveTo(taper*.23,offset*.7-3*scale,taper*.57,offset+wind,taper+3,wind+offset*.16);
+   ctx.lineWidth=(j===1?3.3:2.1)*scale;
+   ctx.lineCap='round';ctx.shadowColor='#76dfff';ctx.shadowBlur=(j===1?6:3)*scale;
+   ctx.beginPath();ctx.moveTo(-3*scale,offset*.48);
+   ctx.bezierCurveTo(end*.22,offset*.8-sway*.3,end*.65,offset*.72+sway,end,sway*.5);
    ctx.stroke();
   }
   ctx.shadowBlur=0;
-  // Delicate, short-lived streamers curling through the exhaust.
-  for(let j=0;j<3;j++){
-   const travel=((t*.00047+j*.36+pl.phase*.09)%1+1)%1;
-   const pos=8*scale+travel*length*.9;
-   ctx.globalAlpha=(1-travel)*(.28+.12*thrust);
-   ctx.strokeStyle='#a5f6ff';ctx.lineWidth=1.1*scale;
-   ctx.beginPath();ctx.moveTo(pos,-4*scale);
-   ctx.quadraticCurveTo(pos+6*scale,Math.sin(t*.01+j)*5*scale,pos+10*scale,4*scale);
-   ctx.stroke();
+  // Powder snow fragments riding the energy stream.
+  for(let k=0;k<7;k++){
+   const q=((t*.00042*(1+k*.08)+k*.173+pl.phase*.06)%1+1)%1;
+   const px=4*scale+q*reach,py=Math.sin(t*.011+k*1.7+side)* (2.5+q*7)*scale;
+   ctx.globalAlpha=(1-q)*(.38+.40*power);
+   ctx.fillStyle=k%3===0?'#eaffff':'#77dfff';
+   ctx.beginPath();ctx.arc(px,py,(.55+(1-q)*1.1)*scale,0,Math.PI*2);ctx.fill();
   }
  }else{
-  // Draw thin ice cracks INTO the cliff, disappearing naturally into its surface.
-  // All cracks remain local to the body; no large dark metallic housing.
-  ctx.globalCompositeOperation='screen';
-  ctx.shadowColor='#39bff3';ctx.shadowBlur=4*scale;
-  for(let j=0;j<3;j++){
-   const spread=(j-1)*3.8*scale;
-   ctx.strokeStyle=j===1?'rgba(164,244,255,.74)':'rgba(74,191,240,.46)';
-   ctx.lineWidth=(j===1?1.45:.9)*scale;
-   ctx.beginPath();ctx.moveTo(-1*scale,spread*.46);
-   ctx.lineTo(-8*scale,spread);
-   ctx.lineTo(-15*scale,spread+((j%2)?-3:3)*scale);
-   ctx.lineTo(-23*scale,spread*.66);
-   ctx.stroke();
-  }
-  ctx.shadowBlur=0;ctx.globalCompositeOperation='source-over';
-  // Crystal recessed mouth. It is small, rock-colored at the edges and semi-transparent.
-  ctx.fillStyle='rgba(17,67,123,.62)';
-  ctx.beginPath();ctx.ellipse(0,0,5.8*scale,6.6*scale,0,0,Math.PI*2);ctx.fill();
-  ctx.strokeStyle='rgba(181,236,250,.68)';
-  ctx.lineWidth=1.5*scale;
-  ctx.beginPath();ctx.ellipse(-1*scale,0,5.7*scale,6.0*scale,0,0,Math.PI*2);ctx.stroke();
-  const core=ctx.createRadialGradient(0,0,0,0,0,5.5*scale);
-  core.addColorStop(0,'rgba(238,255,255,.90)');
-  core.addColorStop(.45,'rgba(89,222,255,.65)');
-  core.addColorStop(1,'rgba(59,183,235,0)');
-  ctx.fillStyle=core;ctx.beginPath();ctx.ellipse(1*scale,0,5.2*scale,5*scale,0,0,Math.PI*2);ctx.fill();
-  // Irregular frosted rims bury the mouth in the surrounding cliff.
-  ctx.lineWidth=1.3*scale;ctx.strokeStyle='rgba(227,249,255,.75)';
-  ctx.beginPath();ctx.moveTo(-7*scale,-5*scale);
-  ctx.lineTo(-5*scale,-7*scale);ctx.lineTo(-2*scale,-6*scale);ctx.stroke();
-  ctx.strokeStyle='rgba(80,200,247,.5)';
-  ctx.beginPath();ctx.moveTo(-6*scale,5*scale);
-  ctx.lineTo(-3*scale,7.5*scale);ctx.lineTo(.5*scale,6*scale);ctx.stroke();
-  // Small frosty sparks, not opaque blocks.
-  for(let i=0;i<3;i++){
-   const q=((t*.00048*(1+i*.11)+pl.phase*.1+i*.334)%1+1)%1;
-   const sx=8*scale+q*length,sy=Math.sin(t*.012+i*2.1+sway)*(3+i*1.8)*scale;
-   ctx.globalAlpha=(1-q)*.6;ctx.fillStyle=i%2?'#c6faff':'#65dcff';
-   ctx.beginPath();ctx.arc(sx,sy,(1.05+(1-q)*.5)*scale,0,Math.PI*2);ctx.fill();
+  // The socket is just a thin jagged crack surrounded by the ORIGINAL rock.
+  ctx.globalCompositeOperation='source-over';
+  const lit=power>0;
+  ctx.strokeStyle=lit?'rgba(128,220,252,.60)':'rgba(46,98,149,.48)';
+  ctx.lineWidth=2.8*scale;ctx.lineCap='round';ctx.lineJoin='round';
+  ctx.beginPath();ctx.moveTo(-16*scale,-4.4*scale);
+  ctx.lineTo(-11*scale,-3.1*scale);ctx.lineTo(-6*scale,-5.3*scale);
+  ctx.lineTo(-1.4*scale,-3.7*scale);ctx.lineTo(2.5*scale,0);
+  ctx.lineTo(-1.3*scale,4*scale);ctx.lineTo(-6.7*scale,5.2*scale);
+  ctx.lineTo(-11*scale,2.7*scale);ctx.lineTo(-17*scale,4.5*scale);
+  ctx.stroke();
+  // Smaller crystal branches are carved into the rock silhouette.
+  ctx.strokeStyle=lit?'rgba(179,243,255,.76)':'rgba(94,161,194,.48)';
+  ctx.lineWidth=1.05*scale;ctx.beginPath();
+  ctx.moveTo(-9*scale,-3.6*scale);ctx.lineTo(-12*scale,-8*scale);ctx.lineTo(-18*scale,-9*scale);
+  ctx.moveTo(-7*scale,5*scale);ctx.lineTo(-9*scale,9*scale);ctx.lineTo(-14*scale,11*scale);
+  ctx.stroke();
+  if(lit){
+   const heart=ctx.createRadialGradient(1*scale,0,0,1*scale,0,8.5*scale);
+   heart.addColorStop(0,'rgba(236,255,255,.98)');
+   heart.addColorStop(.35,'rgba(108,239,255,.86)');
+   heart.addColorStop(1,'rgba(56,174,243,0)');
+   ctx.fillStyle=heart;ctx.globalCompositeOperation='screen';
+   ctx.beginPath();ctx.ellipse(0,0,7*scale,5.2*scale,0,0,Math.PI*2);ctx.fill();
+   ctx.strokeStyle='rgba(214,255,255,.9)';ctx.lineWidth=1.5*scale;
+   ctx.beginPath();ctx.moveTo(-4*scale,-2.2*scale);ctx.lineTo(2.8*scale,0);
+   ctx.lineTo(-4*scale,2.5*scale);ctx.stroke();
+  }else{
+   // Downward-moving lifts and reversing platforms have an unlit rock seam.
+   ctx.strokeStyle='rgba(20,57,95,.65)';ctx.lineWidth=1.1*scale;
+   ctx.beginPath();ctx.moveTo(-3*scale,-1.8*scale);
+   ctx.lineTo(1.6*scale,0);ctx.lineTo(-3*scale,1.7*scale);ctx.stroke();
   }
  }
  ctx.restore();
