@@ -19,7 +19,7 @@ function response(data: unknown, status = 200, origin = '') {
   });
 }
 const fail = (message: string, status: number, origin: string) => response({ error: message }, status, origin);
-const nameRule = /^[\\p{L}\\p{N} ._-]{2,18}$/u;
+const nameRule = /^[\p{L}\p{N} ._-]{2,18}$/u;
 const tokenRule = /^[a-f0-9]{48}$/;
 async function hashToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(token));
@@ -60,7 +60,7 @@ Deno.serve(async req => {
     if (!body || !tokenRule.test(String(body.token || ''))) return fail('Invalid player token', 400, origin);
     const tokenHash = await hashToken(body.token);
     if (body.action === 'register') {
-      const name = String(body.name || '').trim().replace(/\\s+/g, ' ');
+      const name = String(body.name || '').trim().replace(/\s+/g, ' ');
       if (!nameRule.test(name)) return fail('Invalid player name', 400, origin);
       const { data: existing, error: findError } = await db.from('frosty_players')
         .select('id,name').eq('token_hash', tokenHash).maybeSingle();
