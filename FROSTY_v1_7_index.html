@@ -234,7 +234,7 @@ function show(name){
 function startWithName(){
  sound('click');
  if(!playerName){startAfterProfile=true;profileReturn='menu';$('nameError').textContent='';$('playerNameInput').value='';show('profileModal');$('playerNameInput').focus();}
- else start();
+ else {if(best>0)submitGlobalScore(best);start();}
 }
 async function leaderboardRequest(data){
  if(!leaderboardApi)throw Error('Weltranglisten-Server noch nicht verbunden');
@@ -249,13 +249,61 @@ async function registerProfile(){
  await leaderboardRequest({action:'register',name:playerName,token:playerToken});
  profileSynced=true;return true;
 }
-async function submitGlobalScore(value){
- if(!leaderboardApi||!playerName||!Number.isFinite(value)||value<1)return;
- try{
-  if(!profileSynced)await registerProfile();
-  await leaderboardRequest({action:'score',token:playerToken,score:Math.floor(value)});
- }catch(e){console.warn('FROSTY: Weltranglisten-Eintrag nicht gespeichert',e.message)}
+
+/* The highscore never relies on a single one-shot fetch. Pending best
+   persists through offline sessions, app closes, reloads and game restarts. */
+let pendingGlobalBest=0,scoreSyncTask=null,scoreSyncError=null,scoreSyncRetry=0,scoreRetryTimer=0;
+try{
+ const pending=Number(localStorage.getItem('frostyPendingBest')||0);
+ if(Number.isSafeInteger(pending)&&pending>0)pendingGlobalBest=pending;
+}catch(e){}
+function queueGlobalBest(value){
+ if(!playerName||!leaderboardApi)return;
+ const candidate=Math.floor(Number(value));
+ if(!Number.isSafeInteger(candidate)||candidate<=0)return;
+ if(candidate>pendingGlobalBest)pendingGlobalBest=candidate;
+ try{localStorage.setItem('frostyPendingBest',String(pendingGlobalBest))}catch(e){}
 }
+async function flushGlobalBest(){
+ if(!playerName||!leaderboardApi)return false;
+ if(!pendingGlobalBest)return true;
+ if(scoreSyncTask)return scoreSyncTask;
+ scoreSyncTask=(async()=>{
+  try{
+   if(!profileSynced)await registerProfile();
+   // A higher score can arrive while an earlier request is in flight.
+   while(pendingGlobalBest>0){
+    const uploading=pendingGlobalBest;
+    const saved=await leaderboardRequest({action:'score',token:playerToken,score:uploading});
+    if(!saved.ok||!Number.isFinite(Number(saved.best)))throw Error('Keine Speicherbestätigung');
+    if(Number(saved.best)<uploading)throw Error('Serverwert nicht bestätigt');
+    if(pendingGlobalBest<=uploading){
+     pendingGlobalBest=0;
+     try{localStorage.removeItem('frostyPendingBest')}catch(e){}
+    }
+   }
+   scoreSyncError=null;scoreSyncRetry=0;
+   if(scoreRetryTimer){clearTimeout(scoreRetryTimer);scoreRetryTimer=0}
+   return true;
+  }catch(err){
+   scoreSyncError=err;
+   console.warn('FROSTY: Highscore bleibt lokal gespeichert, späterer Abgleich:',err.message);
+   if(!scoreRetryTimer && pendingGlobalBest && navigator.onLine!==false && scoreSyncRetry<3){
+    const delay=Math.min(18000,3300*Math.pow(2,scoreSyncRetry++));
+    scoreRetryTimer=setTimeout(()=>{scoreRetryTimer=0;flushGlobalBest()},delay);
+   }
+   return false;
+  }finally{scoreSyncTask=null}
+ })();
+ return scoreSyncTask;
+}
+function submitGlobalScore(value){
+ queueGlobalBest(Math.max(best,Number(value)||0));
+ return flushGlobalBest();
+}
+window.addEventListener('online',()=>{scoreSyncRetry=0;submitGlobalScore(best)});
+window.addEventListener('pageshow',()=>{if(playerName&&best>0)submitGlobalScore(best)});
+setTimeout(()=>{if(playerName&&best>0)submitGlobalScore(best)},1100);
 function openProfile(returnTo='menu',playAfter=false){
  profileReturn=returnTo;startAfterProfile=playAfter;
  $('nameError').textContent='';$('playerNameInput').value=playerName;
@@ -301,11 +349,12 @@ async function updateGlobalBoard(){
  if(!leaderboardApi){status.textContent='Die Weltrangliste ist vorbereitet, aber noch nicht online: Es fehlt die zentrale Datenbankverbindung. Dein Name und Rekord sind bisher nur auf diesem Gerät gespeichert.';return}
  status.textContent='Lade weltweite Rekorde …';
  try{
+  const uploaded=await submitGlobalScore(best);
   const result=await leaderboardRequest();
   const entries=Array.isArray(result.entries)?result.entries:[];
-  if(!entries.length){status.textContent='Noch keine Weltranglisten-Einträge. Starte deine erste Runde!';return}
+  if(!entries.length){status.textContent=!uploaded&&pendingGlobalBest?'Dein Rekord wird noch synchronisiert. Bitte erneut aktualisieren.':'Noch keine Weltranglisten-Einträge. Starte deine erste Runde!';return}
   for(let i=0;i<entries.length;i++)list.appendChild(makeRankRow(i+1,entries[i]));
-  status.textContent='Die '+Math.min(entries.length,50)+' besten weltweiten Rekorde · '+(result.total||entries.length)+' Spieler';
+  status.textContent='Die '+Math.min(entries.length,50)+' besten weltweiten Rekorde · '+(result.total||entries.length)+' Spieler'+(!uploaded&&pendingGlobalBest?' · Dein Rekord wird erneut synchronisiert':'');
  }catch(e){status.textContent='Weltrangliste aktuell nicht erreichbar. Dein lokaler Rekord bleibt gespeichert.'}
 }
 function openWorldBoard(returnTo){boardReturn=returnTo;show('leaderboardPanel');updateGlobalBoard()}
