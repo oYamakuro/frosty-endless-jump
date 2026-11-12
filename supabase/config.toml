@@ -1,0 +1,3 @@
+# FROSTY uses anonymous guest names, authenticated by strong per-browser tokens in the Edge Function.
+[functions.frosty-leaderboard]
+verify_jwt = false
