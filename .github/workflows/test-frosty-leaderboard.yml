@@ -19,7 +19,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os, secrets, urllib.request, urllib.error
+          import json, os, secrets, time, urllib.request, urllib.error
           api=os.environ['API']
           token=secrets.token_hex(24)
           name="FrostTest-"+secrets.token_hex(3)
@@ -42,6 +42,17 @@ jobs:
           status,board,_=api_call()
           assert any(x.get("name")==name and x.get("score")==42 for x in board.get("entries",[])),board
           print("PASS publicly visible score")
+          # A player improves their own record on the next run: verify actual UPDATE,
+          # not just the initial INSERT into the leaderboard.
+          time.sleep(2.7)
+          status,updated,_=api_call({"action":"score","token":token,"score":81})
+          assert status==200 and updated.get("best")==81,(status,updated)
+          status,board,_=api_call()
+          assert any(x.get("name")==name and x.get("score")==81 for x in board.get("entries",[])),board
+          print("PASS: next run improved record 42 -> 81 publicly visible")
+          status,lower,_=api_call({"action":"score","token":token,"score":35})
+          assert status==200 and lower.get("best")==81,lower
+          print("PASS lower score cannot erase personal record")
           print("TEST_PLAYER_NAME="+name)
           print("ALL TESTS PASSED")
           PY
