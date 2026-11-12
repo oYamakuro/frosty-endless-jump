@@ -21,8 +21,8 @@ jobs:
           from PIL import Image,ImageDraw,ImageFilter
           import base64,io
           operations = [
-            ('frosty_front',[(69,171,13,17),(104,171,13,17)]),
-            ('frosty_side',[(63,153,13,17)])
+            ('frosty_front',[(69,134,13,15),(104,134,13,15)]),
+            ('frosty_side',[(58,125,12,13)])
           ]
           montage=Image.new('RGBA',(660,375),(20,33,60,255))
           for i,(name,eyes) in enumerate(operations):
