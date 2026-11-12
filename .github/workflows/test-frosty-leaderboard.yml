@@ -1,0 +1,47 @@
+name: Verify FROSTY worldwide leaderboard API
+on:
+  push:
+    paths:
+      - '.github/workflows/test-frosty-leaderboard.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check API, player registration, scores and public ranking
+        env:
+          API: https://ojbueqtxceunutuanmlh.supabase.co/functions/v1/frosty-leaderboard
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, secrets, urllib.request, urllib.error
+          api=os.environ['API']
+          token=secrets.token_hex(24)
+          name="FrostTest-"+secrets.token_hex(3)
+          def api_call(payload=None):
+              data=json.dumps(payload).encode() if payload else None
+              req=urllib.request.Request(api, data=data, method="POST" if payload else "GET",
+                  headers={"Content-Type":"application/json", "Origin":"https://oyamakuro.github.io"})
+              with urllib.request.urlopen(req, timeout=20) as r:
+                  return r.status,json.load(r),r.headers
+          status,board,headers=api_call()
+          assert status==200 and isinstance(board.get("entries"),list),("GET failed", status,board)
+          assert headers.get("Access-Control-Allow-Origin")=="https://oyamakuro.github.io","Missing CORS"
+          print("PASS public GET + CORS")
+          status,created,_=api_call({"action":"register","name":name,"token":token})
+          assert status in (200,201) and created.get("ok") is True,(status,created)
+          print("PASS anonymous name registration")
+          status,scored,_=api_call({"action":"score","token":token,"score":42})
+          assert status==200 and scored.get("best")==42,(status,scored)
+          print("PASS score saved")
+          status,board,_=api_call()
+          assert any(x.get("name")==name and x.get("score")==42 for x in board.get("entries",[])),board
+          print("PASS publicly visible score")
+          print("TEST_PLAYER_NAME="+name)
+          print("ALL TESTS PASSED")
+          PY
