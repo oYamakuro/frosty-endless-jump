@@ -1,0 +1,84 @@
+name: FROSTY mobile UI smoke test
+on:
+  push:
+    paths:
+      - 'FROSTY_v1_7_index.html'
+      - '.github/workflows/frosty-ui-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser testing runtime
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Serve game on localhost
+        run: |
+          python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/frosty-http.log 2>&1 &
+          sleep 1
+      - name: Check mobile UI navigation, player identity and pause controls
+        run: |
+          node <<'JS'
+          const { chromium } = require('playwright');
+          const assert = require('node:assert/strict');
+          (async()=>{
+            const browser=await chromium.launch({headless:true});
+            const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
+            const errors=[];
+            page.on('pageerror',e=>errors.push(String(e)));
+            await page.addInitScript(()=>{
+              localStorage.setItem('frostyPlayerName','QAPlayer');
+              localStorage.setItem('frostyPlayerToken','c'.repeat(48));
+              localStorage.setItem('frostyTotalCoins','125');
+            });
+            await page.goto('http://127.0.0.1:8765/FROSTY_v1_7_index.html?v=ui-smoke',{waitUntil:'domcontentloaded'});
+            await page.waitForTimeout(300);
+            const menu=await page.evaluate(()=>[...document.querySelectorAll('#menu button:not(.hero)')].map(b=>b.id));
+            assert.deepEqual(menu,['play','leaderboardBtn','settingsBtn']);
+            assert.equal(await page.locator('#totalCoinsMenu').textContent(),'125');
+            assert.match(await page.locator('#menuPlayerName').textContent(),/QAPlayer/);
+            console.log('PASS: menu has only three main actions and player coin wallet');
+            await page.locator('#settingsBtn').click();
+            assert(await page.locator('#settings').isVisible());
+            assert(await page.evaluate(()=>document.querySelector('#steer').parentElement.nextElementSibling.contains(document.querySelector('#mode'))));
+            await page.locator('#mode').selectOption('manual');
+            await page.locator('#changeName').click();
+            assert(await page.locator('#profileModal').isVisible());
+            await page.locator('#cancelPlayerName').click();
+            assert(await page.locator('#settings').isVisible());
+            await page.locator('#back').click();
+            assert(await page.locator('#menu').isVisible());
+            console.log('PASS: jump setting immediately after steering; edit name is in settings');
+            await page.locator('#play').click();
+            assert(await page.locator('#controls').isVisible());
+            assert(await page.locator('#jump').isVisible());
+            await page.locator('#pause').click();
+            assert(await page.locator('#paused').isVisible());
+            const pauseButtons=await page.evaluate(()=>[...document.querySelectorAll('#paused button')].map(b=>b.id));
+            assert.deepEqual(pauseButtons,['resume','restart','pauseSettings','toMenu']);
+            await page.locator('#pauseSettings').click();
+            assert(await page.locator('#settings').isVisible());
+            await page.locator('#back').click();
+            assert(await page.locator('#paused').isVisible());
+            await page.locator('#toMenu').click();
+            assert(await page.locator('#menu').isVisible());
+            console.log('PASS: manual jump; pause/settings/back; return to menu');
+            await page.locator('#settingsBtn').click();
+            await page.locator('#mode').selectOption('auto');
+            await page.locator('#back').click();
+            await page.locator('#play').click();
+            assert.equal(await page.locator('#jump').isVisible(),false);
+            console.log('PASS: useless right-side jump button hidden for auto-jump');
+            assert.equal(errors.length,0,JSON.stringify(errors));
+            await browser.close();
+            console.log('ALL MOBILE UI TESTS PASSED');
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
