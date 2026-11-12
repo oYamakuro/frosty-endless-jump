@@ -1,4 +1,4 @@
-name: Create Frosty eye-free sprites
+name: Restore Frosty's eyes and remove lower blue dots
 on:
   push:
     paths:
@@ -7,73 +7,59 @@ on:
 permissions:
   contents: write
 jobs:
-  faces:
+  restore:
     runs-on: ubuntu-latest
-    timeout-minutes: 6
+    timeout-minutes: 7
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: true
-      - name: Remove cyan eyes without altering Frosty's outfit or pose
+      - name: Precisely remove only the two turquoise dots below the eyes
         run: |
-          python3 -m pip install -q Pillow
+          python3 -m pip install -q Pillow numpy opencv-python-headless
           python3 - <<'PY'
-          from PIL import Image,ImageDraw,ImageFilter
-          import base64,io
-          operations = [
-            ('frosty_front',[(69,134,13,15),(104,134,13,15)]),
-            ('frosty_side',[(58,125,12,13)])
-          ]
-          montage=Image.new('RGBA',(660,375),(20,33,60,255))
-          for i,(name,eyes) in enumerate(operations):
-            im=Image.open('assets/'+name+'.png').convert('RGBA')
-            old=im.copy()
-            mask=Image.new('L',im.size,0)
-            draw=ImageDraw.Draw(mask)
-            if name=='frosty_front':
-              # One smooth shadow across the WHOLE visor instead of two fake eye sockets.
-              draw.ellipse((49,113,123,153),fill=255)
-            else:
-              for x,y,rx,ry in eyes:
-                draw.ellipse((x-rx,y-ry,x+rx,y+ry),fill=255)
-            mask=mask.filter(ImageFilter.GaussianBlur(2.0))
-            dark=Image.new('RGBA', im.size,(4,14,33,255))
-            if name=='frosty_front':
-              px=mask.load()
-              for yy in range(108,158):
-                for xx in range(44,129):
-                  rr,gg,bb,aa=old.getpixel((xx,yy))
-                  # Keep the white-blue fur hood and icy rim in front of the visor.
-                  if rr>120 and gg>130 and bb>145 and (rr+gg+bb)>465:
-                    px[xx,yy]=0
-                  elif rr>95 and gg>115 and bb>145 and gg-rr<45:
-                    px[xx,yy]=min(px[xx,yy],65)
-            im=Image.composite(dark,im,mask)
-            # Preserve the original alpha channel exactly.
-            im.putalpha(old.getchannel('A'))
-            out='assets/'+name+'_faceless.png'
-            im.save(out,optimize=True)
-            print('FACELESS',name,im.size,'eyes',eyes)
-            a=old.copy();b=im.copy()
-            a.thumbnail((160,310));b.thumbnail((160,310))
-            offset=i*330
-            montage.alpha_composite(a,(offset+(160-a.width)//2,35))
-            montage.alpha_composite(b,(offset+165+(160-b.width)//2,35))
-            d=ImageDraw.Draw(montage)
-            d.text((offset+12,350),name+' original',fill='#c9edff')
-            d.text((offset+178,350),'without eyes',fill='#c9edff')
-          buf=io.BytesIO()
-          montage.convert('RGB').save(buf,format='WEBP',quality=72)
-          print('FACELESS_PREVIEW_START')
-          print(base64.b64encode(buf.getvalue()).decode('ascii'))
-          print('FACELESS_PREVIEW_END')
+          import numpy as np, cv2, io, base64
+          from PIL import Image,ImageDraw
+          original=Image.open('assets/frosty_front.png').convert('RGBA')
+          rgb=np.asarray(original.convert('RGB'))
+          h,w=rgb.shape[:2]
+          mask=np.zeros((h,w),dtype=np.uint8)
+          # These marks are the two bright blue pendant-shaped dots on the scarf.
+          # The eyes above y=147 remain untouched.
+          for x,y in [(69,163),(104,163)]:
+              cv2.ellipse(mask,(x,y),(10,11),0,0,360,255,-1)
+          restored=cv2.inpaint(rgb,mask,6,cv2.INPAINT_TELEA)
+          output=Image.fromarray(restored,'RGB').convert('RGBA')
+          output.putalpha(original.getchannel('A'))
+          output.save('assets/frosty_front_clean.png',optimize=True)
+          print('CLEANED', output.size, 'masked_pixels',int((mask>0).sum()))
+          # Inspect at native size and enlarged around visor + scarf.
+          preview=Image.new('RGB',(810,505),(13,29,51))
+          full_a=original.copy();full_b=output.copy()
+          full_a.thumbnail((195,370));full_b.thumbnail((195,370))
+          preview.paste(full_a,(30+(195-full_a.width)//2,36),full_a)
+          preview.paste(full_b,(260+(195-full_b.width)//2,36),full_b)
+          facebox=(47,104,126,188)
+          crop_a=original.crop(facebox).resize((160,168),Image.Resampling.NEAREST)
+          crop_b=output.crop(facebox).resize((160,168),Image.Resampling.NEAREST)
+          preview.paste(crop_a,(500,40),crop_a)
+          preview.paste(crop_b,(500,250),crop_b)
+          d=ImageDraw.Draw(preview)
+          d.text((64,422),'ORIGINAL: eyes + 2 dots',fill='#dbfaff')
+          d.text((300,422),'CLEAN: same eyes, no dots',fill='#dbfaff')
+          d.text((680,105),'BEFORE',fill='#dbfaff')
+          d.text((680,318),'AFTER',fill='#dbfaff')
+          b=io.BytesIO();preview.save(b,format='WEBP',quality=76)
+          print('EYE_RESTORE_PREVIEW_START')
+          print(base64.b64encode(b.getvalue()).decode('ascii'))
+          print('EYE_RESTORE_PREVIEW_END')
           PY
-      - name: Save eye-free sprites to game assets
+      - name: Commit corrected Frosty sprite
         run: |
           git config user.name "FROSTY Art"
           git config user.email "frosty-art[bot]@users.noreply.github.com"
-          git add assets/frosty_front_faceless.png assets/frosty_side_faceless.png
+          git add assets/frosty_front_clean.png
           if ! git diff --cached --quiet; then
-            git commit -m "Add consistent eye-free Frosty front and side sprites"
+            git commit -m "Restore Frosty's eyes and remove the two lower blue dots"
             git push
           fi
