@@ -10,7 +10,7 @@ extra = len(source) - expected_length
 assert extra == 27, f"Unexpected transfer size: {len(source)}"
 
 def blob_sha(data):
-    return hashlib.sha1(b"blob " + str(len(data)).encode() + b"\\0" + data).hexdigest()
+    return hashlib.sha1(b"blob " + str(len(data)).encode() + bytes([0]) + data).hexdigest()
 
 original = None
 for offset in range(0, len(source) - extra + 1):
