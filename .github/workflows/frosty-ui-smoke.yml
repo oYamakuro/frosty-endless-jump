@@ -79,9 +79,13 @@ jobs:
             await page.locator('#play').click();
             assert.equal(await page.locator('#jump').isVisible(),false);
             const runCoins=await page.locator('#hud .stat:nth-child(3)').boundingBox();
-            assert(runCoins&&runCoins.x<25&&runCoins.y<135,'In-game coin counter is not top-left');
-            await page.waitForTimeout(500);
-            console.log('PASS: right-side jump control hidden for auto-jump; in-game coins top-left');
+            const heightBadge=await page.locator('#hud .stat:nth-child(1)').boundingBox();
+            assert(runCoins&&heightBadge&&runCoins.x>heightBadge.x+70&&Math.abs(runCoins.y-heightBadge.y)<7,
+              'In-game coin counter must return to its original top HUD row');
+            assert.equal(await page.locator('#powerRack .powerRingValue').count(),3);
+            assert.equal(await page.locator('#powerRack .powerWords').count(),0);
+            await page.waitForTimeout(750);
+            console.log('PASS: in-game coins back in the original HUD row; 3 compact power-up timer rings');
             assert.equal(errors.length,0,JSON.stringify(errors));
             await browser.close();
             console.log('ALL MOBILE UI TESTS PASSED');
