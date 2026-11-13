@@ -1,9 +1,8 @@
-name: Verify Frosty new animated winter scene in mobile browser
+name: Verify Frosty original static winter background in mobile browser
 on:
   push:
     paths:
       - 'FROSTY_v1_7_index.html'
-      - 'assets/frosty_animated_winter_v2_5_frames.webp'
       - '.github/workflows/frosty-animated-bg-check.yml'
   workflow_dispatch:
 permissions:
@@ -25,7 +24,7 @@ jobs:
         run: |
           python3 -m http.server 8765 --bind 127.0.0.1 >/tmp/frosty-bg-http.log 2>&1 &
           sleep 1
-      - name: Verify animation frames and capture game preview
+      - name: Verify unanimated original background and test gameplay
         run: |
           node <<'JS'
           const {chromium}=require('playwright');
@@ -33,48 +32,29 @@ jobs:
           (async()=>{
             const browser=await chromium.launch({headless:true});
             const page=await browser.newPage({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
-            const errors=[];
+            const errors=[],assets=[];
             page.on('pageerror',e=>errors.push(e.message));
+            page.on('request',r=>assets.push(r.url()));
             await page.addInitScript(()=>{
               localStorage.setItem('frostyPlayerName','TestFrosty');
               localStorage.setItem('frostyPlayerToken','d'.repeat(48));
             });
-            await page.goto('http://127.0.0.1:8765/FROSTY_v1_7_index.html?v=2.6-check',{waitUntil:'domcontentloaded'});
-            await page.waitForFunction(()=>Array.from(performance.getEntriesByType('resource')).some(x=>x.name.includes('frosty_animated_winter_v2_5_frames.webp')),{timeout:20000});
-            await page.waitForTimeout(1000);
+            await page.goto('http://127.0.0.1:8765/FROSTY_v1_7_index.html?v=2.7-check',{waitUntil:'domcontentloaded'});
+            await page.waitForFunction(()=>performance.getEntriesByType('resource').some(x=>x.name.includes('/winter_depth.jpg')),{timeout:20000});
+            await page.waitForTimeout(900);
+            assert(assets.some(x=>x.includes('/winter_depth.jpg')),'Original winter art did not load');
+            assert(!assets.some(x=>x.includes('frosty_animated_winter')||x.includes('winter-motion/')),
+              'Animated background assets were still requested');
             const img=await page.evaluate(async()=>{
-              const i=new Image();i.src='assets/frosty_animated_winter_v2_5_frames.webp?v=2.6';
-              await i.decode();return [i.naturalWidth,i.naturalHeight];
+              const i=new Image();i.src='assets/winter_depth.jpg?v=2.7';await i.decode();
+              return [i.naturalWidth,i.naturalHeight];
             });
-            assert.deepEqual(img,[1848,832],'The full new eight-frame animated background is not served');
-            const getPixels=()=>page.evaluate(()=>{
-              const c=document.querySelector('canvas#game');
-              const ctx=c.getContext('2d'),out=[];
-              for(let y=0;y<10;y++)for(let x=0;x<8;x++){
-                const rgba=ctx.getImageData(Math.round((x+.5)*c.width/8),Math.round((y+.5)*c.height/10),1,1).data;
-                out.push(rgba[0],rgba[1],rgba[2]);
-              }
-              return out;
-            });
-            const px1=await getPixels();
-            await page.waitForTimeout(470);
-            const px2=await getPixels();
-            const diff=px1.reduce((a,v,i)=>a+Math.abs(v-px2[i]),0);
-            console.log('BACKGROUND_PIXEL_DIFFERENCE',diff);
-            assert(diff>100,'New animated background frames are not progressing inside the canvas');
-            const screenshot=await page.locator('#game').screenshot({type:'jpeg',quality:69});
-            console.log('FROSTY_BG_PREVIEW_BEGIN');
-            console.log(screenshot.toString('base64'));
-            console.log('FROSTY_BG_PREVIEW_END');
+            assert(img[0]>800&&img[1]>1400,'Original portrait winter image is missing');
             await page.locator('#play').click();
             await page.waitForTimeout(580);
-            const gameScreenshot=await page.locator('#game').screenshot({type:'jpeg',quality:70});
-            console.log('FROSTY_GAME_PREVIEW_BEGIN');
-            console.log(gameScreenshot.toString('base64'));
-            console.log('FROSTY_GAME_PREVIEW_END');
             assert(await page.locator('#hud').isVisible(),'The gameplay HUD is not visible');
             assert.equal(errors.length,0,'Javascript runtime errors: '+errors.join(', '));
-            console.log('ANIMATED BACKGROUND PASSED',JSON.stringify({dimensions:img,delta:diff,jsErrors:0}));
+            console.log('ORIGINAL STATIC BACKGROUND PASSED',JSON.stringify({dimensions:img,jsErrors:0,animatedAssetsLoaded:false}));
             await browser.close();
           })().catch(e=>{console.error(e);process.exit(1)});
           JS
