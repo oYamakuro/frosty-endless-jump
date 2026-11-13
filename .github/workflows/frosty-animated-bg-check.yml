@@ -1,9 +1,9 @@
-name: Verify Frosty animated winter image in mobile browser
+name: Verify Frosty new animated winter scene in mobile browser
 on:
   push:
     paths:
       - 'FROSTY_v1_7_index.html'
-      - 'assets/frosty_animated_winter_v2_5.gif'
+      - 'assets/frosty_animated_winter_v2_5_frames.webp'
       - '.github/workflows/frosty-animated-bg-check.yml'
   workflow_dispatch:
 permissions:
@@ -39,14 +39,14 @@ jobs:
               localStorage.setItem('frostyPlayerName','TestFrosty');
               localStorage.setItem('frostyPlayerToken','d'.repeat(48));
             });
-            await page.goto('http://127.0.0.1:8765/FROSTY_v1_7_index.html?v=2.5-check',{waitUntil:'domcontentloaded'});
-            await page.waitForFunction(()=>Array.from(performance.getEntriesByType('resource')).some(x=>x.name.includes('frosty_animated_winter_v2_5.gif')),{timeout:20000});
+            await page.goto('http://127.0.0.1:8765/FROSTY_v1_7_index.html?v=2.6-check',{waitUntil:'domcontentloaded'});
+            await page.waitForFunction(()=>Array.from(performance.getEntriesByType('resource')).some(x=>x.name.includes('frosty_animated_winter_v2_5_frames.webp')),{timeout:20000});
             await page.waitForTimeout(1000);
             const img=await page.evaluate(async()=>{
-              const i=new Image();i.src='assets/frosty_animated_winter_v2_5.gif?v=2.5';
+              const i=new Image();i.src='assets/frosty_animated_winter_v2_5_frames.webp?v=2.6';
               await i.decode();return [i.naturalWidth,i.naturalHeight];
             });
-            assert.deepEqual(img,[231,832],'The new eight-frame animated background is not served');
+            assert.deepEqual(img,[1848,832],'The full new eight-frame animated background is not served');
             const getPixels=()=>page.evaluate(()=>{
               const c=document.querySelector('canvas#game');
               const ctx=c.getContext('2d'),out=[];
@@ -61,7 +61,7 @@ jobs:
             const px2=await getPixels();
             const diff=px1.reduce((a,v,i)=>a+Math.abs(v-px2[i]),0);
             console.log('BACKGROUND_PIXEL_DIFFERENCE',diff);
-            assert(diff>100,'Animated GIF is not progressing inside the canvas');
+            assert(diff>100,'New animated background frames are not progressing inside the canvas');
             const screenshot=await page.locator('#game').screenshot({type:'jpeg',quality:69});
             console.log('FROSTY_BG_PREVIEW_BEGIN');
             console.log(screenshot.toString('base64'));
