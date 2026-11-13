@@ -5,7 +5,11 @@ src=Path('assets/winter_depth.jpg')
 out=Path('assets/winter-motion');out.mkdir(parents=True,exist_ok=True)
 orig=np.array(Image.open(src).convert('RGB'))
 H,W=orig.shape[:2]
-assert (W,H)==(864,1536),(W,H)
+# The original repository art is a higher-resolution master (941x1672).
+# Normalize only the animated layers to a common image-space reference.
+if (W,H)!=(864,1536):
+ orig=np.array(Image.fromarray(orig,'RGB').resize((864,1536),Image.Resampling.LANCZOS))
+ H,W=orig.shape[:2]
 base=orig.copy()
 manifest={'width':W,'height':H,'base':'winter_depth_animated_base.webp','lanterns':[],'falls':[],'trees':[],'aurora':None}
 def polygon(w,h,pts,blur):
