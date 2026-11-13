@@ -1,0 +1,153 @@
+{
+  "width": 864,
+  "height": 1536,
+  "base": "winter_depth_animated_base.webp",
+  "lanterns": [
+    {
+      "file": "winter_lantern_0.webp",
+      "rect": [
+        27,
+        196,
+        57,
+        72
+      ],
+      "pivot": [
+        29,
+        1
+      ],
+      "phase": 0.0
+    },
+    {
+      "file": "winter_lantern_1.webp",
+      "rect": [
+        687,
+        542,
+        51,
+        88
+      ],
+      "pivot": [
+        26,
+        3
+      ],
+      "phase": 1.43
+    },
+    {
+      "file": "winter_lantern_2.webp",
+      "rect": [
+        770,
+        1085,
+        79,
+        109
+      ],
+      "pivot": [
+        40,
+        3
+      ],
+      "phase": 2.86
+    },
+    {
+      "file": "winter_lantern_3.webp",
+      "rect": [
+        121,
+        1208,
+        76,
+        97
+      ],
+      "pivot": [
+        36,
+        3
+      ],
+      "phase": 4.29
+    }
+  ],
+  "falls": [
+    {
+      "file": "winter_waterfall_0.webp",
+      "rect": [
+        645,
+        404,
+        207,
+        248
+      ],
+      "phase": 0,
+      "frames": 8
+    },
+    {
+      "file": "winter_waterfall_1.webp",
+      "rect": [
+        508,
+        694,
+        176,
+        219
+      ],
+      "phase": 2,
+      "frames": 8
+    },
+    {
+      "file": "winter_waterfall_2.webp",
+      "rect": [
+        349,
+        1128,
+        122,
+        155
+      ],
+      "phase": 5,
+      "frames": 8
+    }
+  ],
+  "trees": [
+    {
+      "file": "winter_tree_0.webp",
+      "rect": [
+        725,
+        228,
+        139,
+        214
+      ],
+      "phase": 0,
+      "frames": 8
+    },
+    {
+      "file": "winter_tree_1.webp",
+      "rect": [
+        750,
+        726,
+        114,
+        239
+      ],
+      "phase": 2,
+      "frames": 8
+    },
+    {
+      "file": "winter_tree_2.webp",
+      "rect": [
+        133,
+        969,
+        124,
+        193
+      ],
+      "phase": 3,
+      "frames": 8
+    },
+    {
+      "file": "winter_tree_3.webp",
+      "rect": [
+        505,
+        436,
+        80,
+        128
+      ],
+      "phase": 5,
+      "frames": 8
+    }
+  ],
+  "aurora": {
+    "file": "winter_aurora.webp",
+    "rect": [
+      145,
+      0,
+      514,
+      554
+    ]
+  }
+}
