@@ -72,7 +72,7 @@ jobs:
             console.log('FROSTY_GAME_PREVIEW_BEGIN');
             console.log(gameScreenshot.toString('base64'));
             console.log('FROSTY_GAME_PREVIEW_END');
-            assert(await page.locator('#controls').isVisible(),'Gameplay controls are not visible');
+            assert(await page.locator('#hud').isVisible(),'The gameplay HUD is not visible');
             assert.equal(errors.length,0,'Javascript runtime errors: '+errors.join(', '));
             console.log('ANIMATED BACKGROUND PASSED',JSON.stringify({dimensions:img,delta:diff,jsErrors:0}));
             await browser.close();
