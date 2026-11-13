@@ -1,0 +1,34 @@
+name: Build animated winter background from original artwork
+on:
+  push:
+    paths:
+      - 'scripts/build_winter_motion.py'
+      - '.github/workflows/build-winter-motion.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install pixel processing libraries
+        run: |
+          python -m pip install -q Pillow numpy opencv-python-headless
+      - name: Extract moving pixels from painted scene
+        run: python scripts/build_winter_motion.py
+      - name: Save seamless animated image layers
+        run: |
+          git config user.name "FROSTY Art"
+          git config user.email "frosty-art[bot]@users.noreply.github.com"
+          git add assets/winter-motion/
+          if ! git diff --cached --quiet; then
+            git commit -m "Add animated original winter background layers"
+            git push
+          fi
